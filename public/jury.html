@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Championship - Jüri Paneli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen p-8 font-sans">
+
+    <header class="flex justify-between items-center mb-8 border-b border-gray-700 pb-5">
+        <div>
+            <h1 class="text-3xl font-extrabold text-teal-400 tracking-tight">Jüri Doğrulama Ekranı ⚖️</h1>
+            <p class="text-gray-400 mt-1" id="jury-name"></p>
+        </div>
+        <div class="bg-gray-800 px-6 py-3 rounded-lg border border-gray-700 text-center">
+            <p class="text-sm text-gray-400">Aktif Tur / Kelime</p>
+            <p class="text-xl font-bold text-white">Tur 1 - Kelime 1</p>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="answers-grid">
+        <div id="waiting-msg" class="col-span-full text-center py-20 text-gray-500 text-xl font-semibold">
+            ⏳ Yarışma başladığında öğrenci cevapları buraya düşecek...
+        </div>
+    </div>
+
+    <template id="answer-card-template">
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-xl border-2 border-gray-700 relative transition-all">
+            <div class="focus-warning hidden absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full shadow-lg animate-bounce"
+                title="Ekrandan ayrıldı!">
+                ⚠️
+            </div>
+
+            <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
+                <h3 class="student-name text-lg font-bold text-gray-300">Öğrenci Adı</h3>
+                <span class="student-grade text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded">Sınıf</span>
+            </div>
+
+            <div class="mb-4 bg-gray-900/50 p-3 rounded-xl border border-gray-700 shadow-inner text-center">
+                <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider">Referans Kelime</p>
+                <p class="text-xl font-bold text-blue-400"><span class="target-word">word</span> <span
+                        class="text-gray-500 font-normal mx-1">➔</span> <span
+                        class="target-meaning text-teal-400">anlamı</span></p>
+            </div>
+
+            <div class="mb-6">
+                <p class="text-xs text-gray-400 mb-1 text-center">Öğrencinin Cevabı:</p>
+                <p
+                    class="student-answer text-3xl font-extrabold text-white bg-gray-900 p-4 rounded-xl text-center border border-gray-600 shadow-inner">
+                </p>
+            </div>
+
+            <div class="flex gap-4 eval-panel">
+                <button onclick="evaluateAnswer(this, true)"
+                    class="w-1/2 bg-green-600 hover:bg-green-500 py-3 rounded-xl font-bold shadow-lg transition-all text-xl">✔️
+                    Doğru</button>
+                <button onclick="evaluateAnswer(this, false)"
+                    class="w-1/2 bg-red-600 hover:bg-red-500 py-3 rounded-xl font-bold shadow-lg transition-all text-xl">❌
+                    Yanlış</button>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        const socket = io();
+        const userInfo = JSON.parse(localStorage.getItem('user'));
+
+        if (!userInfo || userInfo.role !== 'jury') {
+            alert('Bu sayfaya erişim yetkiniz yok!');
+            window.location.href = '/';
+        } else {
+            document.getElementById('jury-name').textContent = userInfo.name + " (" + userInfo.target_grades + ". Sınıflar)";
+        }
+
+        const myGrades = userInfo.target_grades ? userInfo.target_grades.split(',') : [];
+        const answersGrid = document.getElementById('answers-grid');
+        const waitingMsg = document.getElementById('waiting-msg');
+        const cardTemplate = document.getElementById('answer-card-template');
+
+        let currentRoundNo = 1;
+        let currentWordOrder = 1;
+        let currentWordData = null;
+        let isHybrid = false;
+        let allStudents = [];
+        // Jüri sayfaya girer girmez sunucudan öğrencileri ister
+        socket.emit('request_students');
+        socket.on('student_list', (data) => {
+            allStudents = data;
+        });
+
+        // YENİ EKLENEN: HİBRİT MOD KARTLARINI OTOMATİK ÇİZEN FONKSİYON
+        function createHybridCards() {
+            answersGrid.innerHTML = '';
+            waitingMsg.style.display = 'none';
+
+            // Jürinin sorumlu olduğu sınıftaki "Öğrencileri" (Admin veya başka jürileri değil) filtrele
+            const myStudents = allStudents.filter(s =>
+                s.role === 'student' && myGrades.includes(s.target_grades)
+            );
+
+            if (myStudents.length === 0) {
+                answersGrid.innerHTML = '<div class="col-span-full text-center py-10 text-red-400 text-xl font-bold">Bu kademeye kayıtlı öğrenci bulunamadı!</div>';
+                return;
+            }
+
+            // Filtrelenen her bir GERÇEK öğrenci için ayrı kart çiz
+            myStudents.forEach(student => {
+                const clone = cardTemplate.content.cloneNode(true);
+                const cardDiv = clone.querySelector('div');
+
+                // GERÇEK VERİTABANI ID'SİNİ VERİYORUZ! Puanlar doğrudan hedefe gidecek.
+                cardDiv.id = 'card-hybrid-' + student.id;
+                cardDiv.setAttribute('data-student-id', student.id);
+
+                // Kartın içini öğrencinin GERÇEK adıyla doldur
+                clone.querySelector('.student-name').textContent = student.name;
+                clone.querySelector('.student-grade').textContent = student.target_grades + ". Sınıf";
+
+                clone.querySelector('.student-answer').innerHTML = '📝 <span class="text-orange-400">Cevap Tahtada</span>';
+
+                if (currentWordData) {
+                    clone.querySelector('.target-word').textContent = currentWordData[`grade_${student.target_grades}_word`] || "Kelime Yok";
+                    clone.querySelector('.target-meaning').textContent = currentWordData[`grade_${student.target_grades}_answer`] || "-";
+                }
+
+                clone.querySelector('.eval-panel').classList.remove('hidden');
+                clone.querySelector('.eval-panel').classList.add('flex');
+
+                answersGrid.appendChild(clone);
+            });
+        }
+
+        socket.on('new_command', (data) => {
+            if (data.action === 'clear_stage' || data.action === 'start_round') {
+                answersGrid.innerHTML = '';
+                answersGrid.appendChild(waitingMsg);
+                waitingMsg.style.display = 'block';
+            }
+
+            if (data.action === 'start_round') {
+                currentRoundNo = data.wordData.round_no;
+                currentWordOrder = data.wordData.order_no;
+                currentWordData = data.wordData;
+
+                // Eğer yeni tura geçerken Hibrit mod açıksa, kartları hemen oluştur!
+                if (isHybrid) {
+                    console.log("Hibrit Mod: Jürilere otomatik manuel kartlar çiziliyor...");
+                    createHybridCards();
+                }
+            }
+        });
+
+        socket.on('student_answered', (data) => {
+            if (isHybrid) return; // Hibrit moddaysak tabletten gelen (olası) kaçak verileri yoksay
+            if (!myGrades.includes(data.grade)) return;
+
+            waitingMsg.style.display = 'none';
+
+            const existingCard = document.getElementById('card-' + data.student_id);
+            if (existingCard) existingCard.remove();
+
+            const clone = cardTemplate.content.cloneNode(true);
+            const cardDiv = clone.querySelector('div');
+
+            cardDiv.id = 'card-' + data.student_id;
+            cardDiv.setAttribute('data-student-id', data.student_id);
+
+            clone.querySelector('.student-name').textContent = data.name;
+            clone.querySelector('.student-grade').textContent = data.grade + ". Sınıf";
+            clone.querySelector('.student-answer').textContent = data.answer;
+
+            if (currentWordData) {
+                clone.querySelector('.target-word').textContent = currentWordData[`grade_${data.grade}_word`];
+                clone.querySelector('.target-meaning').textContent = currentWordData[`grade_${data.grade}_answer`];
+            }
+
+            if (data.focus_lost) {
+                cardDiv.classList.replace('border-gray-700', 'border-red-500');
+                clone.querySelector('.focus-warning').classList.remove('hidden');
+            }
+
+            // Normal modda butonları da açalım (Öğrenci cevap verdiğinde)
+            clone.querySelector('.eval-panel').classList.remove('hidden');
+            clone.querySelector('.eval-panel').classList.add('flex');
+
+            answersGrid.appendChild(clone);
+        });
+
+        window.evaluateAnswer = function (btn, isCorrect) {
+            const card = btn.closest('.bg-gray-800');
+            const studentId = card.getAttribute('data-student-id');
+            const answerText = card.querySelector('.student-answer').textContent;
+
+            socket.emit('save_evaluation', {
+                user_id: studentId,
+                given_answer: answerText,
+                is_correct: isCorrect,
+                round_no: currentRoundNo,
+                word_order: currentWordOrder
+            });
+
+            card.style.transition = 'all 0.4s ease';
+            card.style.transform = 'scale(0.8)';
+            card.style.opacity = '0';
+
+            setTimeout(() => {
+                card.remove();
+                const remainingCards = answersGrid.querySelectorAll('[id^="card-"]').length;
+                if (remainingCards === 0) {
+                    waitingMsg.innerHTML = '✅ Harika! Tüm cevaplar değerlendirildi.<br><span class="text-sm font-normal text-gray-500 mt-2 block">Adminin sıradaki kelimeyi başlatması bekleniyor...</span>';
+                    waitingMsg.style.display = 'block';
+                }
+            }, 400);
+        };
+
+        socket.on('hybrid_mode_status', (status) => {
+            isHybrid = status;
+            console.log("Jüri Hibrit Durumu:", isHybrid);
+
+            // Turun ortasındayken hibrit mod açılırsa kartları anında oluştur
+            if (isHybrid && currentWordData) {
+                createHybridCards();
+            } else if (!isHybrid) {
+                // Hibrit kapatılırsa ekranı eski haline (bekleme moduna) al
+                answersGrid.innerHTML = '';
+                answersGrid.appendChild(waitingMsg);
+                waitingMsg.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+
+</html>

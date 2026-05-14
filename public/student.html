@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Championship - Yarışmacı</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-6 font-sans">
+    <div id="hybrid-lock-screen" class="hidden absolute inset-0 z-50 bg-gray-900/95 flex-col items-center justify-center backdrop-blur-sm">
+        <div class="text-8xl mb-6">🔒</div>
+        <h2 class="text-4xl font-black text-orange-500 text-center px-4">HİBRİT MOD AKTİF</h2>
+        <p class="text-2xl text-gray-300 mt-4 text-center px-4">Lütfen Sahneye Odaklanın ve<br>Cevabınızı Tahtaya Yazın.</p>
+    </div>
+
+    <div class="w-full max-w-lg text-center">
+
+        <div id="waiting-screen" class="block">
+            <div class="animate-pulse mb-6">
+                <span class="text-6xl">⏳</span>
+            </div>
+            <h2 class="text-3xl font-bold text-gray-300 mb-2">Sahne Bekleniyor...</h2>
+            <p class="text-gray-500">Lütfen ekranınızı açık tutun ve hazır olun.</p>
+            <p id="student-name" class="mt-4 text-blue-400 font-semibold"></p>
+        </div>
+
+        <div id="contest-screen" class="hidden w-full bg-gray-800 p-8 rounded-3xl shadow-2xl border border-gray-700">
+            <div
+                class="bg-gray-800 border border-gray-600 rounded-3xl w-full p-6 mb-8 text-center shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-teal-400"></div>
+                <p class="text-sm text-gray-400 font-bold tracking-widest uppercase mb-2">Çevrilecek Kelime</p>
+                <p id="student-target-word" class="text-5xl font-black text-white drop-shadow-md tracking-wider">...</p>
+            </div>
+            <div class="mb-8 relative">
+                <svg class="w-48 h-48 transform -rotate-90">
+                    <div class="flex justify-between items-center mb-8">
+                        <span class="bg-blue-900 text-blue-300 px-4 py-1 rounded-full text-sm font-bold tracking-wider"
+                            id="round-info">YARIŞMA MODU</span>
+                        <span
+                            class="bg-red-900 text-red-100 px-5 py-2 rounded-xl text-2xl font-mono font-extrabold shadow-inner"
+                            id="timer-display">15</span>
+                    </div>
+
+                    <h1 class="text-3xl font-extrabold text-white mb-8">Cevabınızı Yazın</h1>
+
+                    <form id="answer-form" class="space-y-6">
+                        <input type="text" id="answer-input"
+                            class="w-full text-center text-4xl px-4 py-5 rounded-2xl bg-gray-700 border-2 border-gray-600 text-white focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/50 transition-all"
+                            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                            placeholder="..." required disabled>
+
+                        <button type="submit" id="submit-btn"
+                            class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-xl shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                            disabled>
+                            Gönder
+                        </button>
+                    </form>
+                    <p id="status-message" class="mt-6 text-xl font-semibold hidden"></p>
+            </div>
+        </div>
+
+        <script>
+            const socket = io();
+
+            // Giriş yaparken localStorage'a kaydettiğimiz bilgileri alıyoruz
+            const userInfo = JSON.parse(localStorage.getItem('user'));
+
+            // Eğer kişi öğrenci değilse kapı dışarı et
+            if (!userInfo || userInfo.role !== 'student') {
+                alert('Bu sayfaya erişim yetkiniz yok!');
+                window.location.href = '/';
+            } else {
+                document.getElementById('student-name').textContent = "Hoş geldin, " + userInfo.name;
+            }
+
+            const waitingScreen = document.getElementById('waiting-screen');
+            const contestScreen = document.getElementById('contest-screen');
+            const answerInput = document.getElementById('answer-input');
+            const submitBtn = document.getElementById('submit-btn');
+            const statusMessage = document.getElementById('status-message');
+            const timerDisplay = document.getElementById('timer-display');
+
+            let timerInterval;
+
+            // YENİ: Öğrencinin o turda kopya çekip çekmediğini aklında tutacak değişken
+            let hasLostFocusThisRound = false;
+
+            // ==========================================
+            // GÜVENLİK 1: ODAK KAYBI DEDEKTÖRÜ (Güncellendi)
+            // ==========================================
+            function reportFocusLoss() {
+                if (!contestScreen.classList.contains('hidden') && !answerInput.disabled) {
+                    console.warn("Kopya Şüphesi: Ekran odağı kaybedildi!");
+                    hasLostFocusThisRound = true; // Öğrenci yakalandı, bayrağı kaldır!
+
+                    socket.emit('focus_lost', {
+                        student_id: userInfo.id,
+                        name: userInfo.name
+                    });
+                }
+            }
+
+            window.addEventListener('blur', reportFocusLoss);
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) reportFocusLoss();
+            });
+
+            // ==========================================
+            // GÜVENLİK 2: KOPYALA-YAPIŞTIR ENGELİ
+            // ==========================================
+            answerInput.addEventListener('paste', (e) => {
+                e.preventDefault();
+                alert("Yapıştırma işlemi yasaktır!");
+            });
+
+            // ==========================================
+            // SUNUCUYU DİNLEME (Canlı Yayın Kontrolü)
+            // ==========================================
+            socket.on('new_command', (data) => {
+                if (data.action === 'start_round') {
+                    const myGrade = userInfo.target_grades;
+                    const targetWord = data.wordData[`grade_${myGrade}_word`];
+                    document.getElementById('student-target-word').textContent = targetWord;
+                    waitingScreen.classList.add('hidden');
+                    contestScreen.classList.remove('hidden');
+                    statusMessage.classList.add('hidden');
+
+                    answerInput.value = '';
+                    answerInput.disabled = false;
+                    submitBtn.disabled = false;
+
+                    hasLostFocusThisRound = false; // YENİ: Her tur başladığında sabıka kaydını temizle!
+
+                    setTimeout(() => answerInput.focus(), 100);
+
+                    let timeLeft = 15;
+                    timerDisplay.textContent = timeLeft;
+
+                    clearInterval(timerInterval);
+                    timerInterval = setInterval(() => {
+                        timeLeft--;
+                        timerDisplay.textContent = timeLeft;
+                        if (timeLeft <= 0) {
+                            lockScreen("Süre Bitti! ⏱️", 'text-yellow-400');
+                        }
+                    }, 1000);
+                }
+
+                // Admin "Ekranı Temizle" dediğinde
+                else if (data.action === 'clear_stage' || data.action === 'show_answers') {
+                    waitingScreen.classList.remove('hidden');
+                    contestScreen.classList.add('hidden');
+                    clearInterval(timerInterval);
+                }
+            });
+
+            // Süre bitince veya cevap gönderilince ekranı kilitleyen fonksiyon
+            function lockScreen(message, colorClass) {
+                answerInput.disabled = true;
+                submitBtn.disabled = true;
+                clearInterval(timerInterval);
+
+                statusMessage.textContent = message;
+                statusMessage.className = `mt-6 text-xl font-bold ${colorClass}`;
+            }
+
+            // ==========================================
+            // CEVABI SUNUCUYA GÖNDERME (Güncellendi)
+            // ==========================================
+            // student.html - CEVABI SUNUCUYA GÖNDERME KISMI (Değişen bölüm)
+            document.getElementById('answer-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const answer = answerInput.value.trim();
+                if (!answer) return;
+
+                socket.emit('submit_answer', {
+                    student_id: userInfo.id,
+                    name: userInfo.name,
+                    answer: answer,
+                    grade: userInfo.target_grades, // YENİ: Sınıf bilgisini ekledik!
+                    focus_lost: hasLostFocusThisRound
+                });
+
+                lockScreen("Cevap Gönderildi! ✅", 'text-green-400');
+            });
+
+            socket.on('hybrid_mode_status', (status) => {
+                const lockScreenElem = document.getElementById('hybrid-lock-screen');
+                if(status) {
+                    lockScreenElem.classList.remove('hidden');
+                    lockScreenElem.classList.add('flex');
+                } else {
+                    lockScreenElem.classList.add('hidden');
+                    lockScreenElem.classList.remove('flex');
+                }
+            });
+        </script>
+</body>
+
+</html>

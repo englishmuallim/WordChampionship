@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Championship - Sahne</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @keyframes pulse-ring {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+            }
+        }
+
+        .timer-active {
+            animation: pulse-ring 1s infinite;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center font-sans overflow-hidden">
+
+    <div id="standby-screen"
+        class="text-center flex flex-col items-center justify-center h-screen w-full absolute z-50 bg-gray-900 transition-opacity duration-500">
+        <h1
+            class="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-6 drop-shadow-lg">
+            Word Championship</h1>
+        <p class="text-3xl text-gray-400 tracking-widest uppercase">Yarışma Başlamak Üzere...</p>
+    </div>
+
+    <div id="contest-screen" class="w-full max-w-7xl px-8 hidden flex-col h-screen py-8">
+
+        <div class="w-full bg-blue-600 rounded-2xl py-4 shadow-2xl mb-8 flex justify-center border-b-4 border-blue-800">
+            <h2 class="text-5xl font-bold tracking-wide" id="round-title">1. Tur - 1. Kelime</h2>
+        </div>
+
+        <div id="words-grid" class="relative grid grid-cols-2 grid-rows-2 gap-4 flex-grow w-full">
+            <div
+                class="bg-sky-600 rounded-tl-3xl rounded-br-xl flex flex-col justify-center items-center shadow-2xl border-4 border-gray-900 transition-transform duration-300 hover:scale-[1.02]">
+                <h3 class="text-3xl font-bold text-sky-100 mb-2 uppercase tracking-wider">5. Sınıflar</h3>
+                <p class="text-7xl font-extrabold text-white drop-shadow-md text-center" id="word-5-en">...</p>
+                <p class="text-4xl text-yellow-300 drop-shadow-md text-center hidden mt-2" id="word-5-tr">...</p>
+            </div>
+
+            <div
+                class="bg-orange-600 rounded-tr-3xl rounded-bl-xl flex flex-col justify-center items-center shadow-2xl border-4 border-gray-900 transition-transform duration-300 hover:scale-[1.02]">
+                <h3 class="text-3xl font-bold text-orange-100 mb-2 uppercase tracking-wider">6. Sınıflar</h3>
+                <p class="text-7xl font-extrabold text-white drop-shadow-md text-center" id="word-6-en">...</p>
+                <p class="text-4xl text-yellow-300 drop-shadow-md text-center hidden mt-2" id="word-6-tr">...</p>
+            </div>
+
+            <div
+                class="bg-emerald-600 rounded-bl-3xl rounded-tr-xl flex flex-col justify-center items-center shadow-2xl border-4 border-gray-900 transition-transform duration-300 hover:scale-[1.02]">
+                <h3 class="text-3xl font-bold text-emerald-100 mb-2 uppercase tracking-wider">7. Sınıflar</h3>
+                <p class="text-7xl font-extrabold text-white drop-shadow-md text-center" id="word-7-en">...</p>
+                <p class="text-4xl text-yellow-300 drop-shadow-md text-center hidden mt-2" id="word-7-tr">...</p>
+            </div>
+
+            <div
+                class="bg-slate-800 rounded-br-3xl rounded-tl-xl flex flex-col justify-center items-center shadow-2xl border-4 border-gray-900 transition-transform duration-300 hover:scale-[1.02]">
+                <h3 class="text-3xl font-bold text-slate-300 mb-2 uppercase tracking-wider">8. Sınıflar</h3>
+                <p class="text-7xl font-extrabold text-white drop-shadow-md text-center" id="word-8-en">...</p>
+                <p class="text-4xl text-yellow-300 drop-shadow-md text-center hidden mt-2" id="word-8-tr">...</p>
+            </div>
+
+            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                <div id="timer-circle"
+                    class="bg-gray-100 rounded-full w-48 h-48 flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)] border-8 border-gray-800 transition-colors duration-500">
+                    <span id="stage-timer" class="text-7xl font-black text-gray-800 tabular-nums">15</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="times-up-screen"
+            class="hidden flex-col items-center justify-center flex-grow w-full mt-8 animate-pulse">
+            <div class="mb-8"><span class="text-9xl drop-shadow-2xl">⏳</span></div>
+            <h2 class="text-7xl font-black text-yellow-500 drop-shadow-lg tracking-widest uppercase mb-6">Süre Bitti
+            </h2>
+            <p
+                class="text-4xl text-gray-300 font-semibold bg-gray-800 px-8 py-4 rounded-2xl border border-gray-700 shadow-xl">
+                Jüri Değerlendirmesi Bekleniyor...</p>
+        </div>
+
+        <div id="leaderboard-screen" class="hidden flex-col items-center justify-center flex-grow w-full mt-4">
+            <h2 class="text-6xl font-black text-white mb-8 tracking-tighter drop-shadow-lg">🏆 GÜNCEL PUAN DURUMU</h2>
+            <div id="leaderboard-list"
+                class="w-full max-w-4xl bg-gray-800/50 rounded-3xl p-8 border-2 border-gray-700 backdrop-blur-sm shadow-2xl flex flex-col gap-4">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        const standbyScreen = document.getElementById('standby-screen');
+        const contestScreen = document.getElementById('contest-screen');
+        const wordsGrid = document.getElementById('words-grid');
+        const timesUpScreen = document.getElementById('times-up-screen');
+        const leaderboardScreen = document.getElementById('leaderboard-screen');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const stageTimer = document.getElementById('stage-timer');
+        const timerCircle = document.getElementById('timer-circle');
+
+        let timerInterval;
+        let stageWordData = null;
+
+        socket.on('new_command', (data) => {
+            if (data.action === 'start_round') {
+                stageWordData = data.wordData;
+
+                leaderboardScreen.classList.add('hidden');
+                timesUpScreen.classList.add('hidden');
+                wordsGrid.classList.remove('hidden');
+                wordsGrid.classList.add('grid');
+
+                document.getElementById('word-5-en').textContent = data.wordData.grade_5_word;
+                document.getElementById('word-6-en').textContent = data.wordData.grade_6_word;
+                document.getElementById('word-7-en').textContent = data.wordData.grade_7_word;
+                document.getElementById('word-8-en').textContent = data.wordData.grade_8_word;
+
+                document.getElementById('word-5-tr').textContent = "";
+                document.getElementById('word-5-tr').classList.add('hidden');
+                document.getElementById('word-6-tr').textContent = "";
+                document.getElementById('word-6-tr').classList.add('hidden');
+                document.getElementById('word-7-tr').textContent = "";
+                document.getElementById('word-7-tr').classList.add('hidden');
+                document.getElementById('word-8-tr').textContent = "";
+                document.getElementById('word-8-tr').classList.add('hidden');
+
+                document.getElementById('round-title').textContent = `${data.wordData.round_no}. Tur - ${data.wordData.order_no}. Kelime`;
+
+                standbyScreen.style.opacity = '0';
+                setTimeout(() => {
+                    standbyScreen.classList.add('hidden');
+                    contestScreen.classList.remove('hidden');
+                    contestScreen.classList.add('flex');
+                }, 500);
+
+                let timeLeft = 15;
+                stageTimer.textContent = timeLeft;
+                timerCircle.classList.add('timer-active');
+                timerCircle.classList.replace('bg-red-200', 'bg-gray-100');
+                stageTimer.classList.replace('text-red-700', 'text-gray-800');
+
+                clearInterval(timerInterval);
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    stageTimer.textContent = timeLeft;
+
+                    if (timeLeft === 5) {
+                        timerCircle.classList.replace('bg-gray-100', 'bg-red-200');
+                        stageTimer.classList.replace('text-gray-800', 'text-red-700');
+                    }
+
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        timerCircle.classList.remove('timer-active');
+                        stageTimer.textContent = "0";
+
+                        wordsGrid.classList.remove('grid');
+                        wordsGrid.classList.add('hidden');
+                        timesUpScreen.classList.remove('hidden');
+                        timesUpScreen.classList.add('flex');
+                    }
+                }, 1000);
+            }
+
+            else if (data.action === 'show_answers' && stageWordData) {
+                timesUpScreen.classList.add('hidden');
+                wordsGrid.classList.remove('hidden');
+                wordsGrid.classList.add('grid');
+
+                document.getElementById('word-5-tr').textContent = stageWordData.grade_5_answer;
+                document.getElementById('word-5-tr').classList.remove('hidden');
+                document.getElementById('word-6-tr').textContent = stageWordData.grade_6_answer;
+                document.getElementById('word-6-tr').classList.remove('hidden');
+                document.getElementById('word-7-tr').textContent = stageWordData.grade_7_answer;
+                document.getElementById('word-7-tr').classList.remove('hidden');
+                document.getElementById('word-8-tr').textContent = stageWordData.grade_8_answer;
+                document.getElementById('word-8-tr').classList.remove('hidden');
+            }
+
+            else if (data.action === 'hide_answers') {
+                document.getElementById('word-5-tr').classList.add('hidden');
+                document.getElementById('word-6-tr').classList.add('hidden');
+                document.getElementById('word-7-tr').classList.add('hidden');
+                document.getElementById('word-8-tr').classList.add('hidden');
+            }
+
+            else if (data.action === 'clear_stage') {
+                clearInterval(timerInterval);
+                contestScreen.classList.add('hidden');
+                contestScreen.classList.remove('flex');
+                standbyScreen.classList.remove('hidden');
+                setTimeout(() => standbyScreen.style.opacity = '1', 50);
+                timerCircle.classList.remove('timer-active');
+            }
+        });
+
+        socket.on('leaderboard_data', (list) => {
+            timesUpScreen.classList.add('hidden');
+            wordsGrid.classList.add('hidden');
+            leaderboardScreen.classList.remove('hidden');
+            leaderboardScreen.classList.add('flex');
+
+            leaderboardList.innerHTML = '';
+
+            list.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.className = "flex justify-between items-center bg-gray-900/50 p-4 rounded-2xl border border-gray-700 shadow-sm";
+                row.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <span class="text-2xl font-bold text-gray-500 w-8">#${index + 1}</span>
+                        <div>
+                            <p class="text-2xl font-bold text-white">${item.name}</p>
+                            <p class="text-sm text-blue-400 font-bold uppercase">${item.grade}. Sınıf</p>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-black text-yellow-400">${item.score} <span class="text-sm text-yellow-600">PUAN</span></div>
+                `;
+                leaderboardList.appendChild(row);
+            });
+        });
+    </script>
+</body>
+
+</html>

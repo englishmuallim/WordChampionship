@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WORD CHAMPIONSHIP - Kontrol Paneli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen p-8 font-sans">
+    <div class="max-w-5xl mx-auto">
+        <header class="flex justify-between items-center mb-10 border-b border-gray-700 pb-5">
+            <div>
+                <h1 class="text-4xl font-extrabold text-blue-400 tracking-tight">Word Championship Kontrol Merkezi 🚀
+                </h1>
+                <p class="text-gray-400 mt-1">İngilizce Kelime Yarışması Yönetim Paneli</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="connection-status"
+                    class="px-4 py-2 bg-red-600 rounded-full text-sm font-bold shadow-lg transition-colors duration-300">Bağlantı
+                    Bekleniyor</span>
+                <button id="hybrid-btn" onclick="toggleHybridMode()"
+                    class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-4 rounded-lg w-full mb-4 transition-all shadow-md">
+                    🔓 Hibrit Modu AÇ (Öğrenci Ekranlarını Kilitle)
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-gray-800 p-8 rounded-xl shadow-2xl border border-gray-700">
+                <h2 class="text-2xl font-semibold mb-6 text-gray-200 border-b border-gray-600 pb-2">Sistem Durumu</h2>
+                <div class="space-y-4">
+                    <p class="text-xl text-gray-300">Aktif Tur: <span id="current-round"
+                            class="font-bold text-green-400 text-2xl ml-2">1</span></p>
+                    <p class="text-xl text-gray-300">Süre Ayarı: <span id="timer-setting"
+                            class="font-bold text-blue-400 text-2xl ml-2">15 Sn</span></p>
+                    <p class="text-xl text-gray-300 flex items-center">Sahne Modu:
+                        <span id="current-status"
+                            class="font-bold text-purple-400 bg-purple-900/30 px-3 py-1 rounded ml-3">Beklemede</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-8 rounded-xl shadow-2xl border border-gray-700 flex flex-col gap-4">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-200 border-b border-gray-600 pb-2">Sahne Yönetimi</h2>
+                <!-- 🚀 MÜDAHALE PANELİ (ZAMAN MAKİNESİ) -->
+                <div class="bg-gray-800 p-5 rounded-xl border-2 border-dashed border-gray-600 mb-6 shadow-xl">
+                    <h3 class="text-xl font-bold text-gray-300 mb-4 flex items-center gap-2">
+                        <span>🚀</span> Acil Durum: İstediğin Soruya Zıpla
+                    </h3>
+                    <div class="flex gap-4 items-end">
+                        <!-- flex-grow yerine flex-1 eklendi -->
+                        <div class="flex-1">
+                            <label class="text-sm text-gray-400 mb-1 block font-semibold">Tur Seç</label>
+                            <select id="jump-round"
+                                class="w-full bg-gray-900 text-white font-bold px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 outline-none">
+                                <option value="1">1. Tur</option>
+                                <option value="2">2. Tur</option>
+                                <option value="3">3. Tur</option>
+                                <option value="4">4. Tur</option>
+                                <option value="5">5. Tur</option>
+                            </select>
+                        </div>
+                        <!-- flex-grow yerine flex-1 eklendi -->
+                        <div class="flex-1">
+                            <label class="text-sm text-gray-400 mb-1 block font-semibold">Kelime Sırası</label>
+                            <input type="number" id="jump-word" value="1" min="1"
+                                class="w-full bg-gray-900 text-white font-bold px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 outline-none">
+                        </div>
+                        <!-- whitespace-nowrap eklendi, buton sıkışmayacak -->
+                        <button onclick="jumpToWord()"
+                            class="bg-purple-600 hover:bg-purple-500 text-white font-black px-8 py-3 rounded-lg transition-colors shadow-lg border border-purple-400 h-[50px] whitespace-nowrap">
+                            Zıpla
+                        </button>
+                    </div>
+                </div>
+
+                <button id="next-word-btn" onclick="sendNextWord()"
+                    class="bg-blue-600 hover:bg-blue-500 py-4 rounded-lg text-xl font-bold shadow-lg transform hover:-translate-y-1 transition-all w-full mb-4">▶️
+                    1. Tur / 1. Kelimeyi Başlat</button>
+
+                <button id="hybrid-btn" onclick="toggleHybridMode()"
+                    class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-4 rounded-lg w-full mb-4 transition-all shadow-md">🔓
+                    Hibrit Modu AÇ (Öğrenci Ekranlarını Kilitle)</button>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 w-full">
+                    <button onclick="sendCommand('show_answers')"
+                        class="bg-teal-600 hover:bg-teal-500 py-3 rounded-lg text-lg font-bold shadow-md transition-all">👁️
+                        Cevapları Göster</button>
+                    <button onclick="sendCommand('hide_answers')"
+                        class="bg-gray-600 hover:bg-gray-500 py-3 rounded-lg text-lg font-bold shadow-md transition-all">🙈
+                        Cevapları Gizle</button>
+                    <button onclick="sendCommand('show_results')"
+                        class="bg-purple-600 hover:bg-purple-500 py-3 rounded-lg text-lg font-bold shadow-md transition-all">🏆
+                        Sonuçları Yayınla</button>
+                </div>
+
+                <button onclick="sendCommand('clear_stage')"
+                    class="bg-red-600 hover:bg-red-500 py-3 rounded-lg text-lg font-bold shadow-md transition-all mt-4 border border-red-400/50 w-full">⏹️
+                    Ekranı Temizle / Durdur</button>
+                <button onclick="resetScores()"
+                    class="bg-red-900 hover:bg-red-800 py-3 rounded-lg text-lg font-bold shadow-md transition-all mt-4 border border-red-500 w-full">🗑️
+                    Tüm Puanları ve Cevapları Sıfırla</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Socket.io bağlantısını başlat
+        const socket = io();
+        const statusBadge = document.getElementById('connection-status');
+
+        // Sunucuya başarıyla bağlanıldığında çalışır
+        socket.on('connect', () => {
+            statusBadge.textContent = '🟢 Sunucuya Bağlı';
+            statusBadge.classList.replace('bg-red-600', 'bg-green-600');
+            console.log('Sunucu ile canlı bağlantı kuruldu.');
+        });
+
+        // Sunucu bağlantısı koptuğunda çalışır
+        socket.on('disconnect', () => {
+            statusBadge.textContent = '🔴 Bağlantı Koptu';
+            statusBadge.classList.replace('bg-green-600', 'bg-red-600');
+        });
+
+        // Butonlara tıklandığında sunucuya komut gönderen fonksiyon
+        function sendCommand(action) {
+            console.log('Sahneye komut gönderiliyor:', action);
+            // Şimdilik sadece sinyal gönderiyoruz. 
+            // İlerleyen adımlarda bu veriyi server.js üzerinden Supabase'e yazacağız.
+            socket.emit('admin_command', {
+                action: action,
+                round: parseInt(document.getElementById('current-round').innerText)
+            });
+        }
+
+        let currentWordIndex = 1; // Kelime sayacımız
+        let currentRound = 1;     // Tur sayacımız
+
+        function sendNextWord() {
+            console.log(`Sahneye gönderiliyor: Tur ${currentRound}, Kelime ${currentWordIndex}`);
+
+            socket.emit('admin_command', {
+                action: 'start_round',
+                round: currentRound,
+                wordIndex: currentWordIndex // YENİ: Kaçıncı kelime olduğunu sunucuya iletiyoruz
+            });
+
+            // Bir sonraki tıklama için butonu ve sayacı hazırla
+            currentWordIndex++;
+            if (currentWordIndex > 5) {
+                // Eğer 5 kelime bittiyse tur atlat
+                currentWordIndex = 1;
+                currentRound++;
+                document.getElementById('next-word-btn').innerText = `▶️ ${currentRound}. Turu Başlat`;
+            } else {
+                document.getElementById('next-word-btn').innerText = `▶️ Sıradaki Kelime (${currentWordIndex}/5)`;
+            }
+        }
+
+        function resetScores() {
+            const onay = confirm("DİKKAT! Öğrencilerin şu ana kadar verdiği TÜM cevaplar ve puanlar kalıcı olarak silinecek. Sadece testleri sıfırlamak veya yeni yarışmaya başlamak için kullanın.\n\nBu işlem GERİ ALINAMAZ. Emin misiniz?");
+            if (onay) {
+                sendCommand('reset_scores');
+                alert("Veritabanı temizlendi! Yeni teste hazırsınız.");
+            }
+        }
+        // MÜDAHALE PANELİ FONKSİYONU
+        function jumpToWord() {
+            const r = document.getElementById('jump-round').value;
+            const w = document.getElementById('jump-word').value;
+
+            if (!w || w < 1) {
+                alert("Lütfen geçerli bir kelime sırası girin.");
+                return;
+            }
+
+            // Eğer admin panelinde sayaç tutuyorsan, normal akışın bozulmaması 
+            // için o sayaçları da yeni zıpladığımız yere eşitliyoruz.
+            if (typeof currentRound !== 'undefined') currentRound = parseInt(r);
+            if (typeof currentWordIndex !== 'undefined') currentWordIndex = parseInt(w);
+
+            // Sunucuya o özel kelimeyi bulup sahneye yansıtması için emir gönderiyoruz
+            socket.emit('admin_command', {
+                action: 'start_round',
+                round: parseInt(r),
+                wordIndex: parseInt(w)
+            });
+
+            console.log(`🚀 Zıplama yapıldı: Tur ${r}, Kelime ${w}`);
+        }
+
+        // HİBRİT MOD BUTONUNUN BEYNİ
+        function toggleHybridMode() {
+            console.log("TEST: Butona basıldı, sunucuya sinyal gidiyor..."); // F12'de bunu görmeliyiz
+            socket.emit('admin_command', { action: 'toggle_hybrid' });
+        }
+
+        // SUNUCUDAN GELEN CEVABI DİNLEYEN KULAK
+        socket.on('hybrid_mode_status', (status) => {
+            console.log("TEST: Sunucudan durum güncellemesi geldi:", status);
+            const btn = document.getElementById('hybrid-btn');
+            if (!btn) return; // Buton sayfada yoksa hata vermesin
+
+            if (status) {
+                btn.className = "bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg w-full mb-4 transition-all shadow-md animate-pulse mt-4";
+                btn.innerHTML = "🔒 Hibrit Mod AKTİF (Öğrenci Ekranları Kilitli)";
+            } else {
+                btn.className = "bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-4 rounded-lg w-full mb-4 transition-all shadow-md mt-4";
+                btn.innerHTML = "🔓 Hibrit Modu AÇ (Öğrenci Ekranlarını Kilitle)";
+            }
+        });
+    </script>
+</body>
+
+</html>
