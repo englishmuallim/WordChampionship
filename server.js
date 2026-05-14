@@ -11,6 +11,7 @@ const io = new Server(server);
 
 let isHybridMode = false;
 let currentStageState = { action: 'clear_stage' }; // YENİ: Sahnenin o anki durumunu aklında tutacak hafıza
+let pendingAnswers = []; // YENİ: Henüz puanlanmamış cevapları tutar
 
 // Supabase Bağlantısı
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -64,6 +65,7 @@ io.on('connection', (socket) => {
     // YENİ: Bağlanan veya bağlantısı kopup geri gelen kişiye anında sahnedeki son durumu gönder
     socket.emit('new_command', currentStageState);
     socket.emit('hybrid_mode_status', isHybridMode);
+    socket.emit('restore_answers', pendingAnswers);
 
     // Admin'den gelen komutlar (Turu başlat, ekranı temizle vb.)
     // Admin'den gelen komutları yöneten ana merkez
@@ -71,6 +73,7 @@ io.on('connection', (socket) => {
         console.log("Gelen Admin Komutu:", data.action);
 
         if (data.action === 'start_round') {
+            data.startTime = Date.now(); // YENİ: Komutun gönderildiği milisaniyeyi mühürle
             try {
                 const wordIdx = data.wordIndex || 1;
                 const { data: word, error } = await supabase
@@ -179,6 +182,8 @@ io.on('connection', (socket) => {
     socket.on('submit_answer', (data) => {
         console.log('Öğrenci Cevabı Geldi:', data);
         io.emit('student_answered', data);
+        // Öğrenciden cevap geldiğinde:
+        pendingAnswers.push(data); // Cevabı hafızaya al
     });
 
     // YENİ: Öğrenci sekme değiştirirse (Kopya şüphesi) Jüriyi uyar
@@ -209,6 +214,8 @@ io.on('connection', (socket) => {
         } catch (err) {
             console.error("Değerlendirme İşlem Hatası:", err.message);
         }
+        // Jüri puan verince, o öğrencinin cevabını bekleme listesinden çıkar
+        pendingAnswers = pendingAnswers.filter(ans => ans.student_id !== data.user_id);
     });
     // Jürinin gerçek öğrenci listesini istemesi
     socket.on('request_students', async () => {

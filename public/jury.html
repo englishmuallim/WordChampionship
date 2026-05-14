@@ -272,6 +272,18 @@
                 window.location.href = '/';
             }
         }
+        socket.on('restore_answers', (answers) => {
+            if (!answers || answers.length === 0) return;
+
+            // Bekleyen her bir cevap için normal kart çizme işlemini tetikle
+            answers.forEach(data => {
+                // Eğer jürinin sınıfına aitse ekrana çizmek için mevcut fonksiyonunu kullan
+                if (myGrades.includes(data.grade)) {
+                    // Mevcut student_answered dinleyicisini manuel olarak tetikleyebiliriz:
+                    socket._callbacks['$student_answered'].forEach(callback => callback(data));
+                }
+            });
+        });
     </script>
 </body>
 

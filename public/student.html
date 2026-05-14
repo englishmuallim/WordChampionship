@@ -152,19 +152,35 @@
 
                     hasLostFocusThisRound = false; // YENİ: Her tur başladığında sabıka kaydını temizle!
 
-                    setTimeout(() => answerInput.focus(), 100);
+                    // --- ⏱️ ZAMAN HESAPLAMA MANTIĞI (Sunucu Odaklı) ---
+                    let totalTime = 15; // Yarışma süresi (15 Saniye)
 
-                    let timeLeft = 15;
+                    // Sunucudan gelen başlangıç anı (startTime) ile şu anki anı (Date.now()) çıkararak geçen saniyeyi bul
+                    // (Eğer olur da startTime gelmezse diye güvenlik amaçlı 0 ekliyoruz)
+                    let elapsedSeconds = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : 0;
+
+                    // Kalan süreyi bul (Eğer geçen süre 15'ten büyükse eksiye düşmesin diye en az 0 yap)
+                    let timeLeft = Math.max(0, totalTime - elapsedSeconds);
+
                     timerDisplay.textContent = timeLeft;
-
                     clearInterval(timerInterval);
-                    timerInterval = setInterval(() => {
-                        timeLeft--;
-                        timerDisplay.textContent = timeLeft;
-                        if (timeLeft <= 0) {
-                            lockScreen("Süre Bitti! ⏱️", 'text-yellow-400');
-                        }
-                    }, 1000);
+
+                    // Eğer öğrenci sayfayı yenilediğinde süre çoktan bitmişse:
+                    if (timeLeft <= 0) {
+                        lockScreen("Süre Bitti! ⏱️", 'text-yellow-400');
+                    } else {
+                        // Eğer süre bitmediyse, kalan süreden devam et ve klavyeyi aç
+                        setTimeout(() => answerInput.focus(), 100);
+
+                        timerInterval = setInterval(() => {
+                            timeLeft--;
+                            timerDisplay.textContent = timeLeft;
+                            if (timeLeft <= 0) {
+                                lockScreen("Süre Bitti! ⏱️", 'text-yellow-400');
+                                clearInterval(timerInterval); // Sayacı durdurmayı unutmayalım
+                            }
+                        }, 1000);
+                    }
                 }
 
                 // Admin "Ekranı Temizle" dediğinde
