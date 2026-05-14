@@ -10,6 +10,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 let isHybridMode = false;
+let currentStageState = { action: 'clear_stage' }; // YENİ: Sahnenin o anki durumunu aklında tutacak hafıza
 
 // Supabase Bağlantısı
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -60,6 +61,8 @@ app.post('/api/login', async (req, res) => {
 // Socket.io Bağlantısı
 io.on('connection', (socket) => {
     console.log('Bir ekran bağlandı:', socket.id);
+    // YENİ: Bağlanan veya bağlantısı kopup geri gelen kişiye anında sahnedeki son durumu gönder
+    socket.emit('new_command', currentStageState);
     socket.emit('hybrid_mode_status', isHybridMode);
 
     // Admin'den gelen komutlar (Turu başlat, ekranı temizle vb.)
@@ -83,6 +86,7 @@ io.on('connection', (socket) => {
                 }
 
                 data.wordData = word;
+                currentStageState = data; // YENİ: Bu kelimeyi ve turu hafızaya kazı
                 io.emit('new_command', data);
             } catch (err) { console.error("Hata:", err); }
         }
@@ -165,6 +169,8 @@ io.on('connection', (socket) => {
             io.emit('hybrid_mode_status', isHybridMode);
         }
         else {
+            // Butonlara tıklanarak gönderilen komutlar için hafızayı güncelle
+            currentStageState = data;
             io.emit('new_command', data);
         }
     });
