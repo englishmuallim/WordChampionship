@@ -124,101 +124,138 @@
     </div>
 
     <script>
-        // Socket.io bağlantısını başlat
+        // ==========================================
+        // BAĞLANTI VE SİSTEM KURULUMU
+        // ==========================================
         const socket = io();
         const statusBadge = document.getElementById('connection-status');
+        const statusEl = document.getElementById('connection-status');
 
-        // Sunucuya başarıyla bağlanıldığında çalışır
         socket.on('connect', () => {
-            statusBadge.textContent = '🟢 Sunucuya Bağlı';
-            statusBadge.classList.replace('bg-red-600', 'bg-green-600');
-            console.log('Sunucu ile canlı bağlantı kuruldu.');
+            if (statusBadge) {
+                statusBadge.innerHTML = '<span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span> Sunucuya Bağlı';
+                statusBadge.className = "flex items-center gap-2 bg-green-900/50 text-green-400 px-4 py-2 rounded-full border border-green-700 text-sm font-bold transition-colors";
+            }
         });
 
-        // Sunucu bağlantısı koptuğunda çalışır
         socket.on('disconnect', () => {
-            statusBadge.textContent = '🔴 Bağlantı Koptu';
-            statusBadge.classList.replace('bg-green-600', 'bg-red-600');
+            if (statusBadge) {
+                statusBadge.innerHTML = '<span class="w-3 h-3 bg-red-500 rounded-full"></span> BAĞLANTI KOPTU!';
+                statusBadge.className = "flex items-center gap-2 bg-red-900/50 text-red-400 px-4 py-2 rounded-full border border-red-700 text-sm font-bold transition-colors animate-pulse";
+            }
         });
 
-        // Butonlara tıklandığında sunucuya komut gönderen fonksiyon
-        function sendCommand(action) {
-            console.log('Sahneye komut gönderiliyor:', action);
-            // Şimdilik sadece sinyal gönderiyoruz. 
-            // İlerleyen adımlarda bu veriyi server.js üzerinden Supabase'e yazacağız.
-            socket.emit('admin_command', {
-                action: action,
-                round: parseInt(document.getElementById('current-round').innerText)
-            });
+        // ==========================================
+        // MERKEZİ HAFIZA VE UI GÜNCELLEME SİSTEMİ
+        // ==========================================
+        let currentRound = 1;
+        let currentWordIndex = 1;
+
+        // Her eylemden (İleri, Zıplama veya F5) sonra sistemi "Bir Sonraki" hamleye hazırlar
+        function updateAdminStateAfterPlay(playedRound, playedWord) {
+            currentRound = playedRound;
+            currentWordIndex = playedWord + 1; // Oynanan kelimeden bir sonrakine geç
+
+            const btn = document.getElementById('next-word-btn');
+            if (btn) {
+                if (currentWordIndex > 5) { // Eğer 5 kelime bittiyse tur atlat
+                    currentWordIndex = 1;
+                    currentRound++;
+                    btn.innerText = `▶️ ${currentRound}. Turu Başlat`;
+                } else {
+                    btn.innerText = `▶️ Sıradaki Kelime (${currentWordIndex}/5)`;
+                }
+            }
         }
 
-        let currentWordIndex = 1; // Kelime sayacımız
-        let currentRound = 1;     // Tur sayacımız
+        // F5 (SAYFA YENİLEME) KURTARICISI
+        socket.emit('admin_sync_request');
+        socket.on('admin_vars_sync', (data) => {
+            console.log("🔄 Sunucudan hafıza çekildi - Son oynanan:", data.round, "-", data.wordIndex);
 
+            // Eğer sistem yeni açıldıysa ve henüz hiç kelime sorulmadıysa
+            if (!data.wordIndex || data.wordIndex === 0) {
+                currentRound = 1;
+                currentWordIndex = 1;
+                const btn = document.getElementById('next-word-btn');
+                if (btn) btn.innerText = `▶️ 1. Turu Başlat`;
+            } else {
+                // Sistem ortasındayken F5 atıldıysa, kalınan yerden devam etmesi için butonu hazırla
+                updateAdminStateAfterPlay(data.round, data.wordIndex);
+            }
+        });
+
+        // ==========================================
+        // YARIŞMA KONTROL BUTONLARI
+        // ==========================================
+
+        // 1. SIRADAKİ KELİME BUTONU
         function sendNextWord() {
-            console.log(`Sahneye gönderiliyor: Tur ${currentRound}, Kelime ${currentWordIndex}`);
+            let roundToSend = currentRound;
+            let wordToSend = currentWordIndex;
+
+            console.log(`Sahneye gönderiliyor: Tur ${roundToSend}, Kelime ${wordToSend}`);
 
             socket.emit('admin_command', {
                 action: 'start_round',
-                round: currentRound,
-                wordIndex: currentWordIndex // YENİ: Kaçıncı kelime olduğunu sunucuya iletiyoruz
+                round: roundToSend,
+                wordIndex: wordToSend
             });
 
-            // Bir sonraki tıklama için butonu ve sayacı hazırla
-            currentWordIndex++;
-            if (currentWordIndex > 5) {
-                // Eğer 5 kelime bittiyse tur atlat
-                currentWordIndex = 1;
-                currentRound++;
-                document.getElementById('next-word-btn').innerText = `▶️ ${currentRound}. Turu Başlat`;
-            } else {
-                document.getElementById('next-word-btn').innerText = `▶️ Sıradaki Kelime (${currentWordIndex}/5)`;
-            }
+            // Ekrana yansıttıktan sonra hafızayı ve butonu "sıradaki" için güncelle
+            updateAdminStateAfterPlay(roundToSend, wordToSend);
         }
 
-        function resetScores() {
-            const onay = confirm("DİKKAT! Öğrencilerin şu ana kadar verdiği TÜM cevaplar ve puanlar kalıcı olarak silinecek. Sadece testleri sıfırlamak veya yeni yarışmaya başlamak için kullanın.\n\nBu işlem GERİ ALINAMAZ. Emin misiniz?");
-            if (onay) {
-                sendCommand('reset_scores');
-                alert("Veritabanı temizlendi! Yeni teste hazırsınız.");
-            }
-        }
-        // MÜDAHALE PANELİ FONKSİYONU
+        // 2. ZIPLAMA MÜDAHALE BUTONU
         function jumpToWord() {
-            const r = document.getElementById('jump-round').value;
-            const w = document.getElementById('jump-word').value;
+            const r = parseInt(document.getElementById('jump-round').value);
+            const w = parseInt(document.getElementById('jump-word').value);
 
             if (!w || w < 1) {
                 alert("Lütfen geçerli bir kelime sırası girin.");
                 return;
             }
 
-            // Eğer admin panelinde sayaç tutuyorsan, normal akışın bozulmaması 
-            // için o sayaçları da yeni zıpladığımız yere eşitliyoruz.
-            if (typeof currentRound !== 'undefined') currentRound = parseInt(r);
-            if (typeof currentWordIndex !== 'undefined') currentWordIndex = parseInt(w);
-
-            // Sunucuya o özel kelimeyi bulup sahneye yansıtması için emir gönderiyoruz
             socket.emit('admin_command', {
                 action: 'start_round',
-                round: parseInt(r),
-                wordIndex: parseInt(w)
+                round: r,
+                wordIndex: w
             });
 
             console.log(`🚀 Zıplama yapıldı: Tur ${r}, Kelime ${w}`);
+
+            // KRİTİK ÇÖZÜM: Zıpladıktan sonra da sayacı ve butonu döngüye girmemesi için güncelle
+            updateAdminStateAfterPlay(r, w);
         }
 
-        // HİBRİT MOD BUTONUNUN BEYNİ
+        // 3. GENEL KOMUT GÖNDERİCİ (Ekranı Temizle, Süreyi Durdur vs)
+        function sendCommand(action) {
+            console.log('Sahneye komut gönderiliyor:', action);
+            socket.emit('admin_command', {
+                action: action,
+                round: currentRound
+            });
+        }
+
+        // ==========================================
+        // DİĞER FONKSİYONLAR (Sıfırlama, Hibrit, Çıkış)
+        // ==========================================
+
+        function resetScores() {
+            const onay = confirm("DİKKAT! Puanlar kalıcı olarak silinecek. Emin misiniz?");
+            if (onay) {
+                sendCommand('reset_scores');
+                alert("Veritabanı temizlendi! Yeni teste hazırsınız.");
+            }
+        }
+
         function toggleHybridMode() {
-            console.log("TEST: Butona basıldı, sunucuya sinyal gidiyor..."); // F12'de bunu görmeliyiz
             socket.emit('admin_command', { action: 'toggle_hybrid' });
         }
 
-        // SUNUCUDAN GELEN CEVABI DİNLEYEN KULAK
         socket.on('hybrid_mode_status', (status) => {
-            console.log("TEST: Sunucudan durum güncellemesi geldi:", status);
             const btn = document.getElementById('hybrid-btn');
-            if (!btn) return; // Buton sayfada yoksa hata vermesin
+            if (!btn) return;
 
             if (status) {
                 btn.className = "bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg w-full mb-4 transition-all shadow-md animate-pulse mt-4";
@@ -228,24 +265,9 @@
                 btn.innerHTML = "🔓 Hibrit Modu AÇ (Öğrenci Ekranlarını Kilitle)";
             }
         });
-        // 🌐 BAĞLANTI DURUMU TAKİBİ
-        const statusEl = document.getElementById('connection-status');
 
-        if (statusEl) {
-            socket.on('connect', () => {
-                statusEl.className = "flex items-center gap-2 bg-green-900/50 text-green-400 px-4 py-2 rounded-full border border-green-700 text-sm font-bold transition-colors";
-                statusEl.innerHTML = '<span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span> Sunucuya Bağlı';
-            });
-
-            socket.on('disconnect', () => {
-                statusEl.className = "flex items-center gap-2 bg-red-900/50 text-red-400 px-4 py-2 rounded-full border border-red-700 text-sm font-bold transition-colors animate-pulse";
-                statusEl.innerHTML = '<span class="w-3 h-3 bg-red-500 rounded-full"></span> BAĞLANTI KOPTU!';
-            });
-        }
-
-        // 🚪 ÇIKIŞ YAPMA FONKSİYONU
         function logout() {
-            const onay = confirm("Yönetim panelinden çıkış yapmak istediğinize emin misiniz? (Sistem çalışmaya devam eder)");
+            const onay = confirm("Yönetim panelinden çıkış yapmak istediğinize emin misiniz?");
             if (onay) {
                 localStorage.removeItem('user');
                 window.location.href = '/';

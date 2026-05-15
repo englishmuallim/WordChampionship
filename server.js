@@ -12,6 +12,8 @@ const io = new Server(server);
 let isHybridMode = false;
 let currentStageState = { action: 'clear_stage' }; // YENİ: Sahnenin o anki durumunu aklında tutacak hafıza
 let pendingAnswers = []; // YENİ: Henüz puanlanmamış cevapları tutar
+let serverRound = 1;
+let serverWordIndex = 0;
 
 // Supabase Bağlantısı
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -67,12 +69,24 @@ io.on('connection', (socket) => {
     socket.emit('hybrid_mode_status', isHybridMode);
     socket.emit('restore_answers', pendingAnswers);
 
+    // Admin F5 atarsa sunucudaki güncel sayacı fısılda
+    socket.on('admin_sync_request', () => {
+        socket.emit('admin_vars_sync', {
+            round: serverRound,
+            wordIndex: serverWordIndex
+        });
+    });
+
     // Admin'den gelen komutlar (Turu başlat, ekranı temizle vb.)
     // Admin'den gelen komutları yöneten ana merkez
     socket.on('admin_command', async (data) => {
         console.log("Gelen Admin Komutu:", data.action);
 
         if (data.action === 'start_round') {
+            // Admin'den gelen doğru değişken isimlerini (round ve wordIndex) kaydediyoruz
+            serverRound = data.round || serverRound;
+            serverWordIndex = data.wordIndex || serverWordIndex;
+
             data.startTime = Date.now(); // YENİ: Komutun gönderildiği milisaniyeyi mühürle
             try {
                 const wordIdx = data.wordIndex || 1;
@@ -136,14 +150,32 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                // 5. Sırala ve sahneye gönder
-                const leaderboard = Object.values(scores)
-                    .filter(s => s.name)
-                    .sort((a, b) => b.score - a.score)
-                    .slice(0, 10);
+                // 5. Kademelere göre (5, 6, 7, 8) grupla ve her grubu kendi içinde sırala
+                const allScores = Object.values(scores).filter(s => s.name);
 
-                console.log("Sahneye gönderilen liste:", leaderboard);
-                io.emit('leaderboard_data', leaderboard);
+                // 4 ayrı kürsü için boş listelerimiz
+                const groupedLeaderboard = {
+                    "5": [],
+                    "6": [],
+                    "7": [],
+                    "8": []
+                };
+
+                // Her öğrenciyi kendi sınıfının listesine at
+                allScores.forEach(student => {
+                    const grade = student.grade;
+                    if (groupedLeaderboard[grade]) {
+                        groupedLeaderboard[grade].push(student);
+                    }
+                });
+
+                // Her sınıfı kendi içinde en yüksek puandan en düşüğe doğru sırala
+                for (let g in groupedLeaderboard) {
+                    groupedLeaderboard[g].sort((a, b) => b.score - a.score);
+                }
+
+                console.log("Sahneye gönderilen 4'lü şampiyonlar listesi:", groupedLeaderboard);
+                io.emit('leaderboard_data', groupedLeaderboard);
 
             } catch (err) {
                 console.error("Puan hesaplama hatası:", err.message);
