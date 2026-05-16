@@ -59,7 +59,7 @@
                             id="round-info">YARIŞMA MODU</span>
                         <span
                             class="bg-red-900 text-red-100 px-5 py-2 rounded-xl text-2xl font-mono font-extrabold shadow-inner"
-                            id="timer-display">15</span>
+                            id="timer-display">25</span>
                     </div>
 
                     <h1 class="text-3xl font-extrabold text-white mb-8">Cevabınızı Yazın</h1>
@@ -153,13 +153,13 @@
                     hasLostFocusThisRound = false; // YENİ: Her tur başladığında sabıka kaydını temizle!
 
                     // --- ⏱️ ZAMAN HESAPLAMA MANTIĞI (Sunucu Odaklı) ---
-                    let totalTime = 15; // Yarışma süresi (15 Saniye)
+                    let totalTime = data.duration || 25; // Yarışma süresi (25 Saniye)
 
                     // Sunucudan gelen başlangıç anı (startTime) ile şu anki anı (Date.now()) çıkararak geçen saniyeyi bul
                     // (Eğer olur da startTime gelmezse diye güvenlik amaçlı 0 ekliyoruz)
                     let elapsedSeconds = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : 0;
 
-                    // Kalan süreyi bul (Eğer geçen süre 15'ten büyükse eksiye düşmesin diye en az 0 yap)
+                    // Kalan süreyi bul (Eğer geçen süre 25'ten büyükse eksiye düşmesin diye en az 0 yap)
                     let timeLeft = Math.max(0, totalTime - elapsedSeconds);
 
                     timerDisplay.textContent = timeLeft;

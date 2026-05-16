@@ -51,7 +51,7 @@
                     <p class="text-xl text-gray-300">Aktif Tur: <span id="current-round"
                             class="font-bold text-green-400 text-2xl ml-2">1</span></p>
                     <p class="text-xl text-gray-300">Süre Ayarı: <span id="timer-setting"
-                            class="font-bold text-blue-400 text-2xl ml-2">15 Sn</span></p>
+                            class="font-bold text-blue-400 text-2xl ml-2">25 Sn</span></p>
                     <p class="text-xl text-gray-300 flex items-center">Sahne Modu:
                         <span id="current-status"
                             class="font-bold text-purple-400 bg-purple-900/30 px-3 py-1 rounded ml-3">Beklemede</span>
@@ -90,6 +90,19 @@
                             class="bg-purple-600 hover:bg-purple-500 text-white font-black px-8 py-3 rounded-lg transition-colors shadow-lg border border-purple-400 h-[50px] whitespace-nowrap">
                             Zıpla
                         </button>
+                    </div>
+                </div>
+
+                <div
+                    class="bg-gray-800 p-5 rounded-xl border border-gray-600 mb-4 shadow-xl flex items-center justify-between">
+                    <div class="flex flex-col">
+                        <h3 class="text-xl font-bold text-gray-300">⏱️ Yarışma Süresi</h3>
+                        <p class="text-sm text-gray-500">Bir sonraki kelime için geçerli olacak</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="timer-input" value="25" min="5" max="120"
+                            class="w-20 bg-gray-900 text-white font-black text-2xl px-2 py-2 rounded-lg border border-gray-500 focus:border-blue-500 text-center outline-none">
+                        <span class="text-gray-400 font-bold text-xl">Sn</span>
                     </div>
                 </div>
 
@@ -189,27 +202,36 @@
         // YARIŞMA KONTROL BUTONLARI
         // ==========================================
 
-        // 1. SIRADAKİ KELİME BUTONU
+
+        // 1. SIRADAKİ KELİME BUTONU (Süre Destekli)
         function sendNextWord() {
             let roundToSend = currentRound;
             let wordToSend = currentWordIndex;
+            // YENİ: Süreyi ekrandaki kutudan okuyoruz
+            let durationToSend = parseInt(document.getElementById('timer-input').value) || 25;
 
-            console.log(`Sahneye gönderiliyor: Tur ${roundToSend}, Kelime ${wordToSend}`);
+            console.log(`Sahneye gönderiliyor: Tur ${roundToSend}, Kelime ${wordToSend}, Süre: ${durationToSend}`);
 
             socket.emit('admin_command', {
                 action: 'start_round',
                 round: roundToSend,
-                wordIndex: wordToSend
+                wordIndex: wordToSend,
+                duration: durationToSend // Pakete süreyi ekledik
             });
 
-            // Ekrana yansıttıktan sonra hafızayı ve butonu "sıradaki" için güncelle
+            // Sol üstteki sistem panosunu güncelle
+            const timerSettingText = document.getElementById('timer-setting');
+            if (timerSettingText) timerSettingText.innerText = durationToSend + " Sn";
+
             updateAdminStateAfterPlay(roundToSend, wordToSend);
         }
 
-        // 2. ZIPLAMA MÜDAHALE BUTONU
+        // 2. ZIPLAMA MÜDAHALE BUTONU (Süre Destekli)
         function jumpToWord() {
             const r = parseInt(document.getElementById('jump-round').value);
             const w = parseInt(document.getElementById('jump-word').value);
+            // YENİ: Zıplarken de süreyi ekrandaki kutudan okuyoruz
+            let durationToSend = parseInt(document.getElementById('timer-input').value) || 25;
 
             if (!w || w < 1) {
                 alert("Lütfen geçerli bir kelime sırası girin.");
@@ -219,12 +241,16 @@
             socket.emit('admin_command', {
                 action: 'start_round',
                 round: r,
-                wordIndex: w
+                wordIndex: w,
+                duration: durationToSend // Pakete süreyi ekledik
             });
 
-            console.log(`🚀 Zıplama yapıldı: Tur ${r}, Kelime ${w}`);
+            console.log(`🚀 Zıplama yapıldı: Tur ${r}, Kelime ${w}, Süre: ${durationToSend}`);
 
-            // KRİTİK ÇÖZÜM: Zıpladıktan sonra da sayacı ve butonu döngüye girmemesi için güncelle
+            // Sol üstteki sistem panosunu güncelle
+            const timerSettingText = document.getElementById('timer-setting');
+            if (timerSettingText) timerSettingText.innerText = durationToSend + " Sn";
+
             updateAdminStateAfterPlay(r, w);
         }
 

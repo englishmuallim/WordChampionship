@@ -64,8 +64,21 @@ app.post('/api/login', async (req, res) => {
 // Socket.io Bağlantısı
 io.on('connection', (socket) => {
     console.log('Bir ekran bağlandı:', socket.id);
-    // YENİ: Bağlanan veya bağlantısı kopup geri gelen kişiye anında sahnedeki son durumu gönder
-    socket.emit('new_command', currentStageState);
+
+    // --- YENİ SAHNE VE ÖĞRENCİ F5 KALKANI ---
+    if (currentStageState) {
+        // Eğer sunucunun aklındaki son eylem "Puanları Göster" ise puan tablosu kanalından gönder:
+        if (currentStageState.action === 'show_results') {
+            socket.emit('leaderboard_data', currentStageState.data);
+        }
+        // Yok eğer kelime yarışması veya başka bir mod devam ediyorsa standart komut olarak gönder:
+        else {
+            socket.emit('new_command', currentStageState);
+        }
+    }
+    // ----------------------------------------
+
+    // Diğer kritik hafızaları da yeni bağlanana gönder
     socket.emit('hybrid_mode_status', isHybridMode);
     socket.emit('restore_answers', pendingAnswers);
 
@@ -77,7 +90,6 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Admin'den gelen komutlar (Turu başlat, ekranı temizle vb.)
     // Admin'den gelen komutları yöneten ana merkez
     socket.on('admin_command', async (data) => {
         console.log("Gelen Admin Komutu:", data.action);
@@ -130,7 +142,7 @@ io.on('connection', (socket) => {
                 responses.forEach(r => {
                     const uid = r.user_id;
                     if (!scores[uid]) scores[uid] = { score: 0 };
-                    scores[uid].score += 10;
+                    scores[uid].score += 4;
                 });
 
                 // 3. Puan alan kullanıcıların bilgilerini users tablosundan çek
@@ -175,6 +187,10 @@ io.on('connection', (socket) => {
                 }
 
                 console.log("Sahneye gönderilen 4'lü şampiyonlar listesi:", groupedLeaderboard);
+
+                // YENİ: Liderlik tablosu açıldığını ve güncel puanları sunucu hafızasına kazı
+                currentStageState = { action: 'show_results', data: groupedLeaderboard };
+
                 io.emit('leaderboard_data', groupedLeaderboard);
 
             } catch (err) {

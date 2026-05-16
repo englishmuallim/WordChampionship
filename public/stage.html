@@ -38,12 +38,13 @@
         <h1
             class="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-6 drop-shadow-lg">
             Word Championship</h1>
-        <p class="text-3xl text-gray-400 tracking-widest uppercase">Yarışma Başlamak Üzere...</p>
+        <p class="text-3xl text-gray-400 tracking-widest uppercase">Hoşgeldiniz...</p>
     </div>
 
     <div id="contest-screen" class="w-full max-w-7xl px-8 hidden flex-col h-screen py-8">
 
-        <div class="w-full bg-blue-600 rounded-2xl py-4 shadow-2xl mb-8 flex justify-center border-b-4 border-blue-800">
+        <div id="round-banner"
+            class="w-full bg-blue-600 rounded-2xl py-4 shadow-2xl mb-8 flex justify-center border-b-4 border-blue-800">
             <h2 class="text-5xl font-bold tracking-wide" id="round-title">1. Tur - 1. Kelime</h2>
         </div>
 
@@ -79,7 +80,7 @@
             <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
                 <div id="timer-circle"
                     class="bg-gray-100 rounded-full w-48 h-48 flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)] border-8 border-gray-800 transition-colors duration-500">
-                    <span id="stage-timer" class="text-7xl font-black text-gray-800 tabular-nums">15</span>
+                    <span id="stage-timer" class="text-7xl font-black text-gray-800 tabular-nums">25</span>
                 </div>
             </div>
         </div>
@@ -149,11 +150,40 @@
                     contestScreen.classList.add('flex');
                 }, 500);
 
-                let timeLeft = 15;
+                // --- DİNAMİK SÜRE KALKANI (F5 İÇİN) ---
+                let totalDuration = data.duration || 25; // Toplam yarışma süresi
+                let timeLeft = totalDuration;
+
+                // Eğer sunucudan başlama zamanı geldiyse geçen süreyi hesapla ve düş
+                if (data.startTime) {
+                    let passedSeconds = Math.floor((Date.now() - data.startTime) / 1000);
+                    timeLeft = totalDuration - passedSeconds;
+                }
+
+                // Eğer sayfa yenilendiğinde süre çoktan bitmişse direkt Süre Bitti ekranına al
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timerCircle.classList.remove('timer-active');
+                    stageTimer.textContent = "0";
+                    wordsGrid.classList.remove('grid');
+                    wordsGrid.classList.add('hidden');
+                    timesUpScreen.classList.remove('hidden');
+                    timesUpScreen.classList.add('flex');
+                    return;
+                }
+                // --------------------------------------
+
                 stageTimer.textContent = timeLeft;
                 timerCircle.classList.add('timer-active');
-                timerCircle.classList.replace('bg-red-200', 'bg-gray-100');
-                stageTimer.classList.replace('text-red-700', 'text-gray-800');
+
+                // Renk durumunu kalan süreye göre ayarla
+                if (timeLeft <= 5) {
+                    timerCircle.classList.replace('bg-gray-100', 'bg-red-200');
+                    stageTimer.classList.replace('text-gray-800', 'text-red-700');
+                } else {
+                    timerCircle.classList.replace('bg-red-200', 'bg-gray-100');
+                    stageTimer.classList.replace('text-gray-800', 'text-gray-800');
+                }
 
                 clearInterval(timerInterval);
                 timerInterval = setInterval(() => {
@@ -211,59 +241,73 @@
         });
 
         socket.on('leaderboard_data', (groupedData) => {
+            console.log("Sunucudan gelen şampiyonlar listesi:", groupedData);
+
+            // KRİTİK ÇÖZÜM: F5 atılınca gizli olan ana kutuları (contest-screen) görünür yap!
+            standbyScreen.classList.add('hidden');
+            standbyScreen.style.opacity = '0';
+            contestScreen.classList.remove('hidden');
+            contestScreen.classList.add('flex');
+
+            // Diğer yarışma içi ekranları kapat
+            timesUpScreen.classList.remove('flex');
             timesUpScreen.classList.add('hidden');
+            wordsGrid.classList.remove('grid');
             wordsGrid.classList.add('hidden');
+
+            // Eğer varsa mavi başlık kutusunu gizle (Önceki adımda id eklemiştik)
+            const banner = document.getElementById('round-banner');
+            if (banner) {
+                banner.classList.remove('flex');
+                banner.classList.add('hidden');
+            }
+
+            // LİDERLİK TABLOSUNU AÇ
             leaderboardScreen.classList.remove('hidden');
-            leaderboardScreen.classList.add('flex', 'flex-col', 'items-center', 'w-full');
+            leaderboardScreen.classList.add('flex');
 
-            // Listeyi tamamen temizle
+            // LİSTEYİ TEMİZLE VE GENİŞLET
             leaderboardList.innerHTML = '';
-            leaderboardList.className = 'w-full max-w-7xl mt-8'; // Genişliği ayarla
+            leaderboardList.className = 'w-full max-w-7xl bg-gray-800/50 rounded-3xl p-8 border-2 border-gray-700 backdrop-blur-sm shadow-2xl flex flex-col gap-4 mt-8';
 
-            // 4 Sınıfı yan yana göstermek için bir CSS Grid (Izgara) oluştur
+            // 4'LÜ IZGARA (GRID) OLUŞTUR
             const gridContainer = document.createElement('div');
             gridContainer.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full";
 
             const grades = ["5", "6", "7", "8"];
 
             grades.forEach(grade => {
-                // O sınıfa ait öğrencileri al (Eğer kimse yoksa boş liste döndür)
-                const students = groupedData[grade] || [];
-
-                // Her sınıf için ayrı bir dikey sütun (kart) oluştur
+                const students = (groupedData && groupedData[grade]) ? groupedData[grade] : [];
                 const gradeCol = document.createElement('div');
-                gradeCol.className = "bg-gray-800/80 rounded-3xl p-5 border border-gray-700 shadow-2xl flex flex-col gap-3";
+                gradeCol.className = "bg-gray-800/90 rounded-3xl p-5 border border-gray-600 shadow-2xl flex flex-col gap-4 transition-transform hover:-translate-y-1";
 
-                // Sütun Başlığı
-                let htmlContent = `<h2 class="text-3xl font-black text-center text-blue-400 mb-2 border-b border-gray-600 pb-4 shadow-sm">${grade}. SINIFLAR</h2>`;
+                let htmlContent = `<h2 class="text-4xl font-black text-center text-blue-400 mb-2 border-b-2 border-gray-600 pb-4 shadow-sm">${grade}. SINIF</h2>`;
 
                 if (students.length === 0) {
-                    htmlContent += `<div class="flex-1 flex items-center justify-center min-h-[150px]"><p class="text-center text-gray-500 font-bold">Henüz puan alan yok</p></div>`;
+                    htmlContent += `<div class="flex-1 flex items-center justify-center min-h-[200px]"><p class="text-center text-gray-500 font-bold text-xl">Henüz puan alan yok</p></div>`;
                 } else {
-                    // Öğrencileri kendi kartı içinde sırala
                     students.forEach((item, index) => {
-                        // Madalya Renkleri (İlk 3'e özel)
-                        let rankStyle = "text-gray-500 text-xl"; // Standart
+                        let rankStyle = "text-gray-500 text-2xl";
                         let cardStyle = "bg-gray-900/60";
 
                         if (index === 0) {
-                            rankStyle = "text-yellow-400 text-3xl drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]"; // 🥇 Altın
-                            cardStyle = "bg-gradient-to-r from-yellow-900/40 to-gray-900/60 border-yellow-700/50";
+                            rankStyle = "text-yellow-400 text-4xl drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]"; // Altın
+                            cardStyle = "bg-gradient-to-r from-yellow-900/50 to-gray-900/80 border border-yellow-600/50 shadow-lg";
                         } else if (index === 1) {
-                            rankStyle = "text-gray-300 text-2xl drop-shadow-[0_0_8px_rgba(209,213,219,0.8)]"; // 🥈 Gümüş
-                            cardStyle = "bg-gradient-to-r from-gray-700/40 to-gray-900/60 border-gray-500/50";
+                            rankStyle = "text-gray-300 text-3xl drop-shadow-[0_0_8px_rgba(209,213,219,0.8)]"; // Gümüş
+                            cardStyle = "bg-gradient-to-r from-gray-700/50 to-gray-900/80 border border-gray-500/50";
                         } else if (index === 2) {
-                            rankStyle = "text-amber-600 text-2xl drop-shadow-[0_0_8px_rgba(217,119,6,0.8)]"; // 🥉 Bronz
-                            cardStyle = "bg-gradient-to-r from-amber-900/30 to-gray-900/60 border-amber-700/40";
+                            rankStyle = "text-amber-600 text-3xl drop-shadow-[0_0_8px_rgba(217,119,6,0.8)]"; // Bronz
+                            cardStyle = "bg-gradient-to-r from-amber-900/40 to-gray-900/80 border border-amber-700/50";
                         }
 
                         htmlContent += `
-                            <div class="flex justify-between items-center ${cardStyle} p-3 rounded-xl border border-gray-700 transition-all hover:scale-105">
-                                <div class="flex items-center gap-3 overflow-hidden">
-                                    <span class="font-black w-8 text-center ${rankStyle}">#${index + 1}</span>
-                                    <p class="text-lg font-bold text-white truncate max-w-[140px]">${item.name}</p>
+                            <div class="flex justify-between items-center ${cardStyle} p-4 rounded-xl transition-all hover:scale-[1.02]">
+                                <div class="flex items-center gap-4 overflow-hidden">
+                                    <span class="font-black w-10 text-center ${rankStyle}">#${index + 1}</span>
+                                    <p class="text-xl font-bold text-white truncate max-w-[160px]">${item.name}</p>
                                 </div>
-                                <div class="text-2xl font-black text-green-400 drop-shadow-md">${item.score}</div>
+                                <div class="text-3xl font-black text-green-400 drop-shadow-md">${item.score}</div>
                             </div>
                         `;
                     });
@@ -273,7 +317,6 @@
                 gridContainer.appendChild(gradeCol);
             });
 
-            // Oluşturduğumuz 4'lü yapıyı ana ekrana ekle
             leaderboardList.appendChild(gridContainer);
         });
     </script>

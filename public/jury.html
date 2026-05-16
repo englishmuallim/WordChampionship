@@ -136,7 +136,7 @@
                 clone.querySelector('.student-name').textContent = student.name;
                 clone.querySelector('.student-grade').textContent = student.target_grades + ". Sınıf";
 
-                clone.querySelector('.student-answer').innerHTML = '📝 <span class="text-orange-400">Cevap Tahtada</span>';
+                clone.querySelector('.student-answer').innerHTML = '📝 <span class="text-orange-400">Cevap Kağıtta...</span>';
 
                 if (currentWordData) {
                     clone.querySelector('.target-word').textContent = currentWordData[`grade_${student.target_grades}_word`] || "Kelime Yok";
