@@ -120,6 +120,7 @@
 
         socket.on('new_command', (data) => {
             if (data.action === 'start_round') {
+                document.getElementById('ses-basla').play().catch(e => console.log("Ses çalınamadı", e));
                 stageWordData = data.wordData;
 
                 leaderboardScreen.classList.add('hidden');
@@ -191,11 +192,13 @@
                     stageTimer.textContent = timeLeft;
 
                     if (timeLeft === 5) {
+                        document.getElementById('ses-son5').play().catch(e => console.log("Ses çalınamadı", e));
                         timerCircle.classList.replace('bg-gray-100', 'bg-red-200');
                         stageTimer.classList.replace('text-gray-800', 'text-red-700');
                     }
 
                     if (timeLeft <= 0) {
+                        document.getElementById('ses-sure-bitti').play().catch(e => console.log("Ses çalınamadı", e));
                         clearInterval(timerInterval);
                         timerCircle.classList.remove('timer-active');
                         stageTimer.textContent = "0";
@@ -321,5 +324,9 @@
         });
     </script>
 </body>
+
+<audio id="ses-basla" src="basla.mp3" preload="auto"></audio>
+<audio id="ses-son5" src="son5.mp3" preload="auto"></audio>
+<audio id="ses-sure-bitti" src="sure_bitti.mp3" preload="auto"></audio>
 
 </html>

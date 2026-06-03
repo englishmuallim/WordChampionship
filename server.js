@@ -142,7 +142,7 @@ io.on('connection', (socket) => {
                 responses.forEach(r => {
                     const uid = r.user_id;
                     if (!scores[uid]) scores[uid] = { score: 0 };
-                    scores[uid].score += 4;
+                    scores[uid].score += 40;
                 });
 
                 // 3. Puan alan kullanıcıların bilgilerini users tablosundan çek
