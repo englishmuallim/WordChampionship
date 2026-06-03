@@ -119,6 +119,11 @@ io.on('connection', (socket) => {
                 io.emit('new_command', data);
             } catch (err) { console.error("Hata:", err); }
         }
+        if (data.action === 'reveal_rank') {
+            // Admin'den gelen "3'leri aç", "2'leri aç" komutunu sahneye fırlat
+            io.emit('reveal_rank', data.rank);
+            return;
+        }
         // TABLONA BİREBİR UYUMLU PUAN HESAPLAMA MANTIĞI
         else if (data.action === 'show_results') {
             console.log("Puanlar hesaplanıyor...");

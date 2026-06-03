@@ -304,8 +304,14 @@
                             cardStyle = "bg-gradient-to-r from-amber-900/40 to-gray-900/80 border border-amber-700/50";
                         }
 
+                        // Hangi sıradaysa ona göre tetikleyici bir class ver (Örn: reveal-3, reveal-2, reveal-1)
+                        // İlk 2 hariç herkesi 3. ile birlikte açmak için >= 3 mantığı kurduk
+                        let rankNumber = index + 1;
+                        let revealTrigger = rankNumber >= 3 ? 'reveal-3' : `reveal-${rankNumber}`;
+
+                        // YENİ: opacity-0 ve translate-y-4 ile kutuları başta GÖRÜNMEZ yapıyoruz
                         htmlContent += `
-                            <div class="flex justify-between items-center ${cardStyle} p-4 rounded-xl transition-all hover:scale-[1.02]">
+                            <div class="flex justify-between items-center ${cardStyle} p-4 rounded-xl transition-all duration-1000 ease-out opacity-0 translate-y-4 ${revealTrigger}">
                                 <div class="flex items-center gap-4 overflow-hidden">
                                     <span class="font-black w-10 text-center ${rankStyle}">#${index + 1}</span>
                                     <p class="text-xl font-bold text-white truncate max-w-[160px]">${item.name}</p>
@@ -321,6 +327,21 @@
             });
 
             leaderboardList.appendChild(gridContainer);
+        });
+        socket.on('reveal_rank', (rank) => {
+            // Gelen sıraya (3, 2 veya 1) ait tüm gizli kutuları bul
+            const elements = document.querySelectorAll(`.reveal-${rank}`);
+
+            elements.forEach((el, i) => {
+                // Her bir kutuyu ufak bir gecikmeyle (dalga efekti) görünür yap
+                setTimeout(() => {
+                    el.classList.remove('opacity-0', 'translate-y-4');
+                    el.classList.add('opacity-100', 'translate-y-0');
+
+                    // İsteğe bağlı: Burada her kutu açılışında bir ding sesi çaldırabilirsin
+                    // document.getElementById('ses-basla').play().catch(e=>console.log(e));
+                }, i * 200); // 200ms arayla sırayla düşsünler
+            });
         });
     </script>
 </body>
