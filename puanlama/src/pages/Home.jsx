@@ -5,7 +5,7 @@ const ROL_ADI = { admin: 'Yönetici', teacher: 'Öğretmen' }
 
 // Menü başlıkları. Sayfalar sonraki adımlarda eklenecek; şimdilik hepsi pasif.
 const MENU = [
-  { ad: 'Puan Girişi', roller: ['admin', 'teacher'] },
+  { ad: 'Puan Girişi', roller: ['admin'], yol: '/puan-girisi' }, // öğretmene açılınca roller'e 'teacher' eklenir
   { ad: 'Sıralama', roller: ['admin', 'teacher'] },
   { ad: 'Sezon ve Sınavlar', roller: ['admin'], yol: '/sezon-sinavlar' },
   { ad: 'Öğrenciler', roller: ['admin'], yol: '/ogrenciler' },
