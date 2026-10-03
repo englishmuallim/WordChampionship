@@ -8,7 +8,7 @@ const MENU = [
   { ad: 'Puan Girişi', roller: ['admin', 'teacher'] },
   { ad: 'Sıralama', roller: ['admin', 'teacher'] },
   { ad: 'Sezon ve Sınavlar', roller: ['admin'], yol: '/sezon-sinavlar' },
-  { ad: 'Öğrenciler', roller: ['admin'] },
+  { ad: 'Öğrenciler', roller: ['admin'], yol: '/ogrenciler' },
   { ad: 'Hesaplar', roller: ['admin'] },
 ]
 
