@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 
 const ROL_ADI = { admin: 'Yönetici', teacher: 'Öğretmen' }
@@ -6,7 +7,7 @@ const ROL_ADI = { admin: 'Yönetici', teacher: 'Öğretmen' }
 const MENU = [
   { ad: 'Puan Girişi', roller: ['admin', 'teacher'] },
   { ad: 'Sıralama', roller: ['admin', 'teacher'] },
-  { ad: 'Sezon ve Sınavlar', roller: ['admin'] },
+  { ad: 'Sezon ve Sınavlar', roller: ['admin'], yol: '/sezon-sinavlar' },
   { ad: 'Öğrenciler', roller: ['admin'] },
   { ad: 'Hesaplar', roller: ['admin'] },
 ]
@@ -38,15 +39,26 @@ export default function Home() {
         </header>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {gorunenMenu.map((m) => (
-            <div
-              key={m.ad}
-              className="bg-gray-800 border border-gray-700 rounded-xl p-6 opacity-60 cursor-not-allowed"
-            >
-              <h2 className="text-xl font-semibold text-gray-200">{m.ad}</h2>
-              <p className="text-sm text-gray-500 mt-1">Yakında</p>
-            </div>
-          ))}
+          {gorunenMenu.map((m) =>
+            m.yol ? (
+              <Link
+                key={m.ad}
+                to={m.yol}
+                className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-xl p-6 transition-colors"
+              >
+                <h2 className="text-xl font-semibold text-gray-100">{m.ad}</h2>
+                <p className="text-sm text-blue-400 mt-1">Aç →</p>
+              </Link>
+            ) : (
+              <div
+                key={m.ad}
+                className="bg-gray-800 border border-gray-700 rounded-xl p-6 opacity-60 cursor-not-allowed"
+              >
+                <h2 className="text-xl font-semibold text-gray-200">{m.ad}</h2>
+                <p className="text-sm text-gray-500 mt-1">Yakında</p>
+              </div>
+            )
+          )}
         </div>
       </div>
     </div>
