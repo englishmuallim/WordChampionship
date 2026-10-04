@@ -7,6 +7,7 @@ import SeasonsExams from './pages/SeasonsExams'
 import Students from './pages/Students'
 import StudentImport from './pages/StudentImport'
 import ScoreEntry from './pages/ScoreEntry'
+import ChangePassword from './pages/ChangePassword'
 import Ranking from './pages/Ranking'
 
 // Tüm sayfaları saran kök: oturum bilgisi her sayfada kullanılabilir.
@@ -55,6 +56,15 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <Ranking />
+          </ProtectedRoute>
+        ),
+      },
+      // Giriş yapan herkes kendi şifresini değiştirebilir.
+      {
+        path: '/sifre-degistir',
+        element: (
+          <ProtectedRoute>
+            <ChangePassword />
           </ProtectedRoute>
         ),
       },

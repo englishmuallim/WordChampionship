@@ -28,6 +28,12 @@ export default function Home() {
               <p className="font-bold">{staff.full_name}</p>
               <p className="text-sm text-gray-400">{ROL_ADI[staff.role] ?? staff.role}</p>
             </div>
+            <Link
+              to="/sifre-degistir"
+              className="text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-2 rounded-lg border border-gray-600 transition-colors font-bold"
+            >
+              Şifremi değiştir
+            </Link>
             <button
               onClick={signOut}
               className="text-sm bg-red-900/50 hover:bg-red-700 text-red-300 hover:text-white px-4 py-2 rounded-lg border border-red-800 transition-colors font-bold"
