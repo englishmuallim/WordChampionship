@@ -7,6 +7,7 @@ import SeasonsExams from './pages/SeasonsExams'
 import Students from './pages/Students'
 import StudentImport from './pages/StudentImport'
 import ScoreEntry from './pages/ScoreEntry'
+import Ranking from './pages/Ranking'
 
 // Tüm sayfaları saran kök: oturum bilgisi her sayfada kullanılabilir.
 function Kok() {
@@ -40,6 +41,16 @@ const router = createBrowserRouter([
       // Şimdilik yalnızca yönetici. Öğretmene açmak için roles={['admin', 'teacher']} yapılır
       // (ve Home.jsx'te menü satırı güncellenir); veritabanı kuralları öğretmeni zaten şubeyle sınırlar.
       { path: '/puan-girisi', element: yonetici(<ScoreEntry />) },
+      // Sıralamayı yönetici de öğretmen de görür (rol kısıtı yok; aktif personel olmak yeterli).
+      // Ünite puanları ise veritabanı kurallarıyla öğretmenin yetkili olduğu şubelerle sınırlıdır.
+      {
+        path: '/siralama',
+        element: (
+          <ProtectedRoute>
+            <Ranking />
+          </ProtectedRoute>
+        ),
+      },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
