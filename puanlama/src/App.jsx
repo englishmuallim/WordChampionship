@@ -38,9 +38,16 @@ const router = createBrowserRouter([
       { path: '/sezon-sinavlar', element: yonetici(<SeasonsExams />) },
       { path: '/ogrenciler', element: yonetici(<Students />) },
       { path: '/ogrenciler/ice-aktar', element: yonetici(<StudentImport />) },
-      // Şimdilik yalnızca yönetici. Öğretmene açmak için roles={['admin', 'teacher']} yapılır
-      // (ve Home.jsx'te menü satırı güncellenir); veritabanı kuralları öğretmeni zaten şubeyle sınırlar.
-      { path: '/puan-girisi', element: yonetici(<ScoreEntry />) },
+      // Puan girişini yönetici de öğretmen de kullanır (rol kısıtı yok; aktif personel olmak yeterli).
+      // Öğretmen yalnızca veritabanı kurallarının izin verdiği kademe/şubeleri görür ve yazar.
+      {
+        path: '/puan-girisi',
+        element: (
+          <ProtectedRoute>
+            <ScoreEntry />
+          </ProtectedRoute>
+        ),
+      },
       // Sıralamayı yönetici de öğretmen de görür (rol kısıtı yok; aktif personel olmak yeterli).
       // Ünite puanları ise veritabanı kurallarıyla öğretmenin yetkili olduğu şubelerle sınırlıdır.
       {

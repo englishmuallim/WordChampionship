@@ -3,13 +3,12 @@ import { useAuth } from '../lib/auth'
 
 const ROL_ADI = { admin: 'Yönetici', teacher: 'Öğretmen' }
 
-// Menü başlıkları. Sayfalar sonraki adımlarda eklenecek; şimdilik hepsi pasif.
+// Ana sayfa menüsü. Rolü uymayan kutular gösterilmez.
 const MENU = [
-  { ad: 'Puan Girişi', roller: ['admin'], yol: '/puan-girisi' }, // öğretmene açılınca roller'e 'teacher' eklenir
+  { ad: 'Puan Girişi', roller: ['admin', 'teacher'], yol: '/puan-girisi' },
   { ad: 'Sıralama', roller: ['admin', 'teacher'], yol: '/siralama' },
   { ad: 'Sezon ve Sınavlar', roller: ['admin'], yol: '/sezon-sinavlar' },
   { ad: 'Öğrenciler', roller: ['admin'], yol: '/ogrenciler' },
-  { ad: 'Hesaplar', roller: ['admin'] },
 ]
 
 export default function Home() {

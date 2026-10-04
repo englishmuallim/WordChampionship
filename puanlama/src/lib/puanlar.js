@@ -13,10 +13,16 @@ export async function sinavPuanlariniGetir(sinavId) {
   return { harita, kayitlar: data }
 }
 
-// Kaydı giren kişilerin adları: Map(id -> ad). Yetki yoksa (öğretmen başkasını göremez) o kişi haritada olmaz.
+// Kaydı giren kişilerin adları: Map(id -> ad). wc_personel_adlari yalnızca id ve ad soyad döndürür ve
+// hem yönetici hem öğretmen çağırabilir (öğretmen kendi profilinden başkasını doğrudan okuyamaz).
+// Ad kozmetik bir bilgidir: fonksiyon yoksa ya da hata verirse sayfa bozulmaz, ad "bilinmiyor" görünür.
 export async function personelAdlari(idler) {
   if (!idler.length) return new Map()
-  const { data } = await supabase.from('wc_staff').select('id, full_name').in('id', idler)
+  const { data, error } = await supabase.rpc('wc_personel_adlari', { p_idler: idler })
+  if (error) {
+    console.error('Personel adları okunamadı:', error.code, error.message)
+    return new Map()
+  }
   return new Map((data ?? []).map((p) => [p.id, p.full_name]))
 }
 
