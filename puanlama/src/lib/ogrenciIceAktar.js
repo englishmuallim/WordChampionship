@@ -2,6 +2,7 @@
 // Dosyadan yalnızca 4 sütun alınır: Öğrenci No, Ad Soyad, Kademe, Şube.
 // Dosyadaki başka sütunlara (Şifre, Telefon, Email vb.) hiç dokunulmaz.
 import { sadelestir } from './metin.js'
+import { alanlariDogrula, bos } from './ogrenciDogrulama.js'
 
 const BASLIK_ESLEME = {
   no: ['ogrencino', 'ogrencinumarasi', 'ogrno', 'okulno'],
@@ -12,16 +13,6 @@ const BASLIK_ESLEME = {
 const BASLIK_ADI = { no: 'Öğrenci No', ad: 'Ad Soyad', kademe: 'Kademe', sube: 'Şube' }
 
 const baslikAnahtari = (metin) => sadelestir(metin).replace(/[^a-z0-9]/g, '')
-const bos = (v) => v === null || v === undefined || String(v).trim() === ''
-const goster = (v) => (v instanceof Date ? 'tarih' : String(v).slice(0, 30))
-
-// Hücre değerini metne çevirir: tam sayı -> metin, metin -> kırpılmış metin, diğerleri (tarih, ondalık, mantıksal) -> null
-function tamMetin(v) {
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : null
-  if (typeof v === 'string') return v.trim()
-  return null
-}
-
 // İlk 10 satırda başlık satırını arar. Bulamazsa hangi sütunların eksik olduğunu söyler.
 export function satirlariAyir(satirlar) {
   let enIyi = { idx: {}, i: -1 }
@@ -58,75 +49,9 @@ export function satirlariAyir(satirlar) {
 }
 
 // Tek satırı doğrular ve temizler. Her hata { kod, mesaj } biçimindedir.
+// Kurallar ogrenciDogrulama.js içindedir ve tek öğrenci formuyla ortaktır.
 export function satirDogrula(ham) {
-  const hatalar = []
-  const hata = (kod, mesaj) => hatalar.push({ kod, mesaj })
-
-  let no = null
-  if (bos(ham.no)) {
-    hata('no_bos', 'Öğrenci no boş.')
-  } else {
-    const m = tamMetin(ham.no)
-    if (m === null || !/^[0-9A-Za-zÇĞİÖŞÜçğıöşü._-]{1,20}$/.test(m)) {
-      hata('no_gecersiz', `Öğrenci no geçersiz: "${goster(ham.no)}".`)
-    } else {
-      no = m
-    }
-  }
-
-  let ad = null
-  if (bos(ham.ad)) {
-    hata('ad_bos', 'Ad Soyad boş.')
-  } else {
-    const a = String(ham.ad).replace(/\s+/g, ' ').trim()
-    if (a.length > 100) hata('ad_uzun', 'Ad Soyad 100 karakterden uzun.')
-    else ad = a
-  }
-
-  let kademe = null
-  if (bos(ham.kademe)) {
-    hata('kademe_gecersiz', 'Kademe boş.')
-  } else {
-    const m = tamMetin(ham.kademe)
-    if (m !== null && /^\d+$/.test(m)) {
-      const n = Number(m)
-      if (n >= 5 && n <= 8) kademe = n
-      else hata('kademe_gecersiz', `Kademe 5 ile 8 arasında olmalı (bulunan: ${n}).`)
-    } else if (m !== null && /^\d{1,2}\s*[-/.\s]\s*\p{L}$/u.test(m)) {
-      hata('kademe_birlesik', `Kademe sütununda "${m}" var; Kademe ve Şube ayrı sütunlarda olmalı.`)
-    } else {
-      hata('kademe_gecersiz', `Kademe bir sayı olmalı (bulunan: "${goster(ham.kademe)}").`)
-    }
-  }
-
-  let sube = null
-  if (bos(ham.sube)) {
-    hata('sube_bos', 'Şube boş.')
-  } else {
-    const m = tamMetin(ham.sube)
-    const birlesik = m && m.match(/^(\d{1,2})\s*[-/.\s]\s*(\p{L})$/u)
-    const tek = m && /^\p{L}$/u.test(m)
-    if (birlesik) {
-      if (kademe !== null && Number(birlesik[1]) !== kademe) {
-        hata(
-          'sube_kademe_uyusmaz',
-          `Şube sütunundaki kademe (${birlesik[1]}) ile Kademe sütunu (${kademe}) uyuşmuyor.`
-        )
-      } else {
-        sube = birlesik[2].toLocaleUpperCase('tr')
-      }
-    } else if (tek) {
-      sube = m.toLocaleUpperCase('tr')
-    } else {
-      hata('sube_gecersiz', `Şube tek harf olmalı (bulunan: "${goster(ham.sube)}").`)
-    }
-  }
-
-  return {
-    no,
-    hatalar,
-    deger: hatalar.length ? null : { student_no: no, full_name: ad, grade: kademe, class_name: sube },
-  }
+  return alanlariDogrula(ham, 'dosya')
 }
 
 const ALANLAR = [
