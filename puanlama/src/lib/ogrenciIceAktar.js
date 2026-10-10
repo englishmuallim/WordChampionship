@@ -60,8 +60,10 @@ const ALANLAR = [
   ['class_name', 'Şube'],
 ]
 
-// ham: satirlariAyir'ın çıktısı. mevcutlar: veritabanındaki öğrenciler (student_no, full_name, grade, class_name, is_active).
-export function planOlustur(ham, mevcutlar) {
+// ham: satirlariAyir'ın çıktısı. mevcutlar: veritabanındaki öğrenciler (id, student_no, full_name, grade, class_name, is_active).
+// puanSayilari: (isteğe bağlı) Map(öğrenci id -> { toplam, aktifSezon }). Verilirse, aktif sezonda puan kaydı olan
+// bir öğrencinin kademesini değiştiren satır HATALI sayılır (veritabanı tetikleyicisi de bunu engeller).
+export function planOlustur(ham, mevcutlar, puanSayilari = null) {
   const mevcutMap = new Map(mevcutlar.map((o) => [o.student_no, o]))
   const dogrulanan = ham.map((h) => ({ h, d: satirDogrula(h) }))
 
@@ -91,14 +93,23 @@ export function planOlustur(ham, mevcutlar) {
     const eski = mevcutMap.get(d.deger.student_no)
     if (!eski) return { ...kayit, durum: 'yeni' }
 
-    eslesenMevcut.add(d.deger.student_no)
-    kayit.pasif = eski.is_active === false
     for (const [alan, etiket] of ALANLAR) {
       const e = eski[alan] ?? ''
       const y = d.deger[alan] ?? ''
       if (String(e) !== String(y)) kayit.farklar.push({ alan, etiket, eski: String(e), yeni: String(y) })
     }
-    kayit.kademeDegisti = kayit.farklar.some((f) => f.alan === 'grade')
+    const kademeFarki = kayit.farklar.some((f) => f.alan === 'grade')
+    const puan = puanSayilari?.get(eski.id)
+    if (kademeFarki && puan && puan.aktifSezon > 0) {
+      kayit.hatalar.push({
+        kod: 'kademe_puanli',
+        mesaj: `Aktif sezonda ${puan.aktifSezon} puan kaydı olduğu için kademe değiştirilemez (${eski.grade}. kademe → ${d.deger.grade}. kademe).`,
+      })
+      return { ...kayit, durum: 'hatali' } // bu öğrenciye dokunulmaz: eslesenMevcut'a eklenmez
+    }
+    eslesenMevcut.add(d.deger.student_no)
+    kayit.pasif = eski.is_active === false
+    kayit.kademeDegisti = kademeFarki
     return { ...kayit, durum: kayit.farklar.length ? 'guncellenecek' : 'ayni' }
   })
 
@@ -129,6 +140,7 @@ const HATA_ETIKETLERI = {
   sube_gecersiz: 'Şube geçersiz (tek harf olmalı)',
   sube_kademe_uyusmaz: 'Şube ile Kademe uyuşmuyor',
   tekrar: 'Aynı öğrenci no dosyada birden fazla',
+  kademe_puanli: 'Aktif sezonda puanı olduğu için kademe değiştirilemez',
 }
 
 // Hatalı satırların nedenlerini sayarak özetler: [{ etiket, adet }]

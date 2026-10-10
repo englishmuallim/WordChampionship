@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { puanSayilariHaritasi } from './ogrenciYonetimi'
 
 // Tüm öğrencileri okur. Supabase tek istekte en çok 1000 satır verdiği için sayfa sayfa çeker.
 export async function tumOgrencileriGetir() {
@@ -23,4 +24,36 @@ export async function tumOgrencileriGetir() {
 export async function ogrencileriYaz(satirlar) {
   const { error } = await supabase.from('students').upsert(satirlar, { onConflict: 'school_id,student_no' })
   return { error }
+}
+
+// Aktif sezonda / toplamda öğrenci başına puan kaydı sayıları (wc_ogrenci_puan_sayilari).
+// Dönen: { harita: Map(id -> { toplam, aktifSezon }) } ya da { error }. Yalnızca puanı olan öğrenciler haritada yer alır.
+// (Supabase tek istekte en çok 1000 satır verir; puanı olan öğrenci sayısı bunun altında olduğu sürece yeterlidir.)
+export async function puanSayilariGetir() {
+  const { data, error } = await supabase.rpc('wc_ogrenci_puan_sayilari')
+  if (error) return { error }
+  return { harita: puanSayilariHaritasi(data) }
+}
+
+// Tek öğrenci ekler. deger: { student_no, full_name, grade, class_name } (doğrulanmış).
+export async function ogrenciEkle(okulId, deger) {
+  const { error } = await supabase.from('students').insert({ school_id: okulId, ...deger })
+  return { error }
+}
+
+// Tek öğrenciyi günceller (yalnızca verilen alanlar). Erişim kuralları satırı gizlerse 0 satır etkilenir;
+// bunu sessizce başarı saymamak için etkilenen satır sayısı kontrol edilir.
+export async function ogrenciGuncelle(id, degisenler) {
+  const { data, error } = await supabase.from('students').update(degisenler).eq('id', id).select('id')
+  if (error) return { error }
+  if (!data?.length) return { mesaj: 'Öğrenci güncellenemedi (yetki yok ya da kayıt bulunamadı).' }
+  return {}
+}
+
+// Tek öğrenciyi siler. Puan kaydı olan öğrenciyi veritabanı zaten silmez (yabancı anahtar).
+export async function ogrenciSil(id) {
+  const { data, error } = await supabase.from('students').delete().eq('id', id).select('id')
+  if (error) return { error }
+  if (!data?.length) return { mesaj: 'Öğrenci silinemedi (yetki yok ya da kayıt bulunamadı).' }
+  return {}
 }

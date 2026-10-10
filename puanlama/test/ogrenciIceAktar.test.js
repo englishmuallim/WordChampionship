@@ -180,3 +180,48 @@ test('CSV: Windows-1254 (Türkçe Excel) kodlaması doğru çözülür', () => {
   assert.equal(satirlar[1][1], 'ÇAĞRI ŞENOL')
   assert.equal(satirlariAyir(satirlar).hata, undefined)
 })
+
+// ---------- Kademe değişikliği ve puan kuralı (aktif sezonda puanı olan öğrencinin kademesi değişemez) ----------
+test('plan: aktif sezonda puanı olan öğrencinin kademesini değiştiren satır HATALI sayılır ve dokunulmaz', () => {
+  const m = [
+    { id: 'p1', student_no: '9101', full_name: 'PUANLI CAN', grade: 5, class_name: 'A', is_active: true },
+    { id: 'p2', student_no: '9102', full_name: 'PUANSIZ CAN', grade: 5, class_name: 'A', is_active: true },
+    { id: 'p3', student_no: '9103', full_name: 'ESKI SEZON CAN', grade: 5, class_name: 'A', is_active: true },
+  ]
+  const puan = new Map([
+    ['p1', { toplam: 2, aktifSezon: 2 }],
+    ['p3', { toplam: 1, aktifSezon: 0 }], // yalnızca eski sezonda puanı var
+  ])
+  const plan = planOlustur(
+    [
+      { satir: 2, no: 9101, ad: 'PUANLI CAN', kademe: 6, sube: 'A' }, // puanlı + kademe değişimi -> HATALI
+      { satir: 3, no: 9102, ad: 'PUANSIZ CAN', kademe: 6, sube: 'A' }, // puansız -> güncellenecek
+      { satir: 4, no: 9103, ad: 'ESKI SEZON CAN', kademe: 6, sube: 'A' }, // eski sezon puanı -> güncellenecek
+    ],
+    m,
+    puan
+  )
+  assert.deepEqual(plan.satirlar.map((s) => s.durum), ['hatali', 'guncellenecek', 'guncellenecek'])
+  assert.equal(plan.satirlar[0].hatalar[0].kod, 'kademe_puanli')
+  assert.match(plan.satirlar[0].hatalar[0].mesaj, /Aktif sezonda 2 puan kaydı olduğu için kademe değiştirilemez \(5\. kademe → 6\. kademe\)/)
+  // hatalı satır değişiklik sayacına ve yazılacaklara girmez, o öğrenci "dokunulmayan"dır
+  assert.equal(plan.sayilar.kademeDegisen, 2)
+  assert.deepEqual(yazilacakSatirlar(plan, 's').map((r) => r.student_no), ['9102', '9103'])
+  assert.equal(plan.sayilar.dokunulmayan, 1)
+  assert.deepEqual(hataOzeti(plan), [{ etiket: 'Aktif sezonda puanı olduğu için kademe değiştirilemez', adet: 1 }])
+})
+
+test('plan: puanlı öğrencinin kademesi AYNI kalıyorsa (yalnızca ad/şube) hata değildir', () => {
+  const m = [{ id: 'p1', student_no: '9101', full_name: 'PUANLI CAN', grade: 5, class_name: 'A', is_active: true }]
+  const puan = new Map([['p1', { toplam: 2, aktifSezon: 2 }]])
+  const plan = planOlustur([{ satir: 2, no: 9101, ad: 'PUANLI CAN YENI', kademe: 5, sube: 'B' }], m, puan)
+  assert.equal(plan.satirlar[0].durum, 'guncellenecek')
+  assert.deepEqual(plan.satirlar[0].farklar.map((f) => f.alan), ['full_name', 'class_name'])
+})
+
+test('plan: puan sayıları verilmezse eski davranış sürer (kademe değişimi güncellenecektir)', () => {
+  const m = [{ id: 'p1', student_no: '9101', full_name: 'X', grade: 5, class_name: 'A', is_active: true }]
+  const plan = planOlustur([{ satir: 2, no: 9101, ad: 'X', kademe: 6, sube: 'A' }], m)
+  assert.equal(plan.satirlar[0].durum, 'guncellenecek')
+  assert.equal(plan.satirlar[0].kademeDegisti, true)
+})

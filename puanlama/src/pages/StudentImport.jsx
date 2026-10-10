@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { hataMetni } from '../lib/hatalar'
 import { dosyadanSatirlar } from '../lib/dosyaOku'
 import { hataOzeti, planOlustur, satirlariAyir, yazilacakSatirlar } from '../lib/ogrenciIceAktar'
-import { ogrencileriYaz, tumOgrencileriGetir } from '../lib/ogrenciler'
+import { ogrencileriYaz, puanSayilariGetir, tumOgrencileriGetir } from '../lib/ogrenciler'
 import ImportPreview from '../components/ImportPreview'
 import { anaDugme, ikincilDugme, kart } from '../lib/stil'
 
@@ -28,9 +28,14 @@ export default function StudentImport() {
       if (oku.hata) return setHata(oku.hata)
       const ayir = satirlariAyir(oku.satirlar)
       if (ayir.hata) return setHata(ayir.hata)
-      const { data: mevcut, error } = await tumOgrencileriGetir()
+      const [{ data: mevcut, error }, puan] = await Promise.all([tumOgrencileriGetir(), puanSayilariGetir()])
       if (error) return setHata(hataMetni(error))
-      setPlan(planOlustur(ayir.ham, mevcut))
+      if (puan.error) {
+        // Puan sayıları olmadan "puanlı öğrencinin kademesi değişiyor mu" bilinemez; güvenli tarafta durulur.
+        hataMetni(puan.error)
+        return setHata('Puan kaydı sayıları alınamadığı için önizleme hazırlanamadı. Sayfayı yenileyip tekrar dene.')
+      }
+      setPlan(planOlustur(ayir.ham, mevcut, puan.harita))
       setDosyaAdi(dosya.name)
       setAsama('onizleme')
     } finally {
