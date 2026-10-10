@@ -1,10 +1,20 @@
 import { KADEMELER } from './ExamForm'
 import { etiketSinifi, girdiSinifi } from '../lib/stil'
 
-// Kademe / şube süzgeçleri ve arama kutusu.
-export default function StudentToolbar({ kademe, sube, arama, subeler, onKademe, onSube, onArama }) {
+// Kademe / şube süzgeçleri, arama kutusu ve "ayrılanları göster" seçeneği (varsayılan kapalı).
+export default function StudentToolbar({
+  kademe,
+  sube,
+  arama,
+  ayrilanlar,
+  subeler,
+  onKademe,
+  onSube,
+  onArama,
+  onAyrilanlar,
+}) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4 items-end">
       <div>
         <label className={etiketSinifi} htmlFor="f-kademe">
           Kademe
@@ -43,6 +53,15 @@ export default function StudentToolbar({ kademe, sube, arama, subeler, onKademe,
           placeholder="örn. cagri"
         />
       </div>
+      <label className="flex items-center gap-2 text-sm text-gray-300 pb-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={ayrilanlar}
+          onChange={(e) => onAyrilanlar(e.target.checked)}
+          className="w-5 h-5 accent-blue-500"
+        />
+        Ayrılanları göster
+      </label>
     </div>
   )
 }

@@ -8,7 +8,7 @@ export async function tumOgrencileriGetir() {
   for (let bas = 0; ; bas += sayfa) {
     const { data, error } = await supabase
       .from('students')
-      .select('id, student_no, full_name, grade, class_name, is_active')
+      .select('id, student_no, full_name, grade, class_name, is_active, left_at, left_reason')
       .order('student_no')
       .order('id')
       .range(bas, bas + sayfa - 1)
@@ -56,4 +56,13 @@ export async function ogrenciSil(id) {
   if (error) return { error }
   if (!data?.length) return { mesaj: 'Öğrenci silinemedi (yetki yok ya da kayıt bulunamadı).' }
   return {}
+}
+
+// Toplu işlemi (arşivle, geri al, şube değiştir, kademe değiştir) tek istekte uygular.
+// istek: ogrenciToplu.js topluOnizleme'nin ürettiği { fonksiyon, parametreler }. Sunucu fonksiyonları yönetici
+// kontrolü, okul filtresi ve girdi doğrulaması yapar; etkilenen sayı beklenenden farklıysa HEPSİNİ geri alır.
+// Dönen: { sayi } ya da { error }.
+export async function topluIslemUygula(istek) {
+  const { data, error } = await supabase.rpc(istek.fonksiyon, istek.parametreler)
+  return error ? { error } : { sayi: data }
 }

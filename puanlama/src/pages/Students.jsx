@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { hataMetni } from '../lib/hatalar'
 import { sadelestir } from '../lib/metin'
+import { useOgrenciYonetimi } from '../lib/useOgrenciYonetimi'
 import {
-  ogrenciEkle,
-  ogrenciGuncelle,
-  ogrenciSil,
-  puanSayilariGetir,
-  tumOgrencileriGetir,
-} from '../lib/ogrenciler'
-import { silmeDurumu, silmeOnayMetni } from '../lib/ogrenciYonetimi'
+  bugunTarihi,
+  gorunenlerleKesistir,
+  hepsiniSec,
+  secimiDegistir,
+  seciliOgrenciler,
+  topluOnizleme,
+} from '../lib/ogrenciToplu'
+import StudentBulkBar from '../components/StudentBulkBar'
+import StudentBulkDialog from '../components/StudentBulkDialog'
 import StudentFormModal from '../components/StudentFormModal'
 import StudentTable from '../components/StudentTable'
 import StudentToolbar from '../components/StudentToolbar'
@@ -18,45 +20,16 @@ import { anaDugme, kart } from '../lib/stil'
 
 export default function Students() {
   const { staff } = useAuth()
-  const [ogrenciler, setOgrenciler] = useState([])
-  const [puanSayilari, setPuanSayilari] = useState(null) // Map ya da null (alınamadıysa)
-  const [yukleniyor, setYukleniyor] = useState(true)
-  const [hata, setHata] = useState('')
-  const [bilgi, setBilgi] = useState('')
+  const { ogrenciler, puanSayilari, yukleniyor, hata, bilgi, setHata, setBilgi, kaydet, sil, topluUygula } =
+    useOgrenciYonetimi(staff.school_id)
+
   const [kademe, setKademe] = useState('')
   const [sube, setSube] = useState('')
   const [arama, setArama] = useState('')
+  const [ayrilanlar, setAyrilanlar] = useState(false) // varsayılan: ayrılanlar gizli
+  const [secili, setSecili] = useState(() => new Set())
   const [form, setForm] = useState(null) // null | { ogrenci: null } (ekle) | { ogrenci } (düzenle)
-
-  // Öğrencileri ve puan kaydı sayılarını birlikte yükler. Sayılar alınamazsa silme ve kademe
-  // değişikliği güvenli tarafta kapalı kalır (null = bilinmiyor).
-  const yukle = useCallback(async () => {
-    const [o, p] = await Promise.all([tumOgrencileriGetir(), puanSayilariGetir()])
-    if (o.error) {
-      setHata(hataMetni(o.error))
-      return false
-    }
-    setOgrenciler(o.data)
-    if (p.error) {
-      hataMetni(p.error) // konsola ayrıntıyı yazar
-      setPuanSayilari(null)
-      setHata('Puan kaydı sayıları alınamadı: silme ve kademe değişikliği şimdilik kapalı. Sayfayı yenileyip tekrar dene.')
-    } else {
-      setPuanSayilari(p.harita)
-      setHata('')
-    }
-    return true
-  }, [])
-
-  useEffect(() => {
-    let iptal = false
-    yukle().finally(() => {
-      if (!iptal) setYukleniyor(false)
-    })
-    return () => {
-      iptal = true
-    }
-  }, [yukle])
+  const [toplu, setToplu] = useState(null) // null | { islem, secilenler }
 
   // Şube seçenekleri seçili kademeye göre (kademe seçilmediyse hepsi)
   const subeler = useMemo(() => {
@@ -67,6 +40,7 @@ export default function Students() {
   const gosterilen = useMemo(() => {
     const aranan = sadelestir(arama).trim()
     return ogrenciler
+      .filter((o) => ayrilanlar || o.is_active !== false)
       .filter((o) => !kademe || o.grade === Number(kademe))
       .filter((o) => !sube || o.class_name === sube)
       .filter((o) => !aranan || sadelestir(o.full_name).includes(aranan) || sadelestir(o.student_no).includes(aranan))
@@ -76,42 +50,51 @@ export default function Students() {
           (a.class_name ?? '').localeCompare(b.class_name ?? '', 'tr') ||
           a.full_name.localeCompare(b.full_name, 'tr')
       )
-  }, [ogrenciler, kademe, sube, arama])
+  }, [ogrenciler, kademe, sube, arama, ayrilanlar])
 
-  const pasifSayisi = ogrenciler.filter((o) => o.is_active === false).length
+  // Süzgeç ya da liste değişince GÖRÜNMEYEN satırlar seçimden düşer (gizli satırlara işlem yapılamasın)
+  useEffect(() => {
+    setSecili((onceki) => gorunenlerleKesistir(onceki, gosterilen))
+  }, [gosterilen])
+
+  const ayrilanSayisi = ogrenciler.filter((o) => o.is_active === false).length
+  const seciliListe = useMemo(() => seciliOgrenciler(secili, gosterilen), [secili, gosterilen])
 
   function kademeDegisti(deger) {
     setKademe(deger)
     setSube('') // önceki kademenin şubesi yeni kademede olmayabilir
   }
 
-  // Ekleme ve düzenleme penceresinden gelen kayıt isteği. Hata metni ya da boş metin (başarı) döner.
-  async function kaydet(deger, degisenler) {
-    setBilgi('')
-    const duzenlenen = form.ogrenci
-    const sonuc = duzenlenen
-      ? await ogrenciGuncelle(duzenlenen.id, degisenler)
-      : await ogrenciEkle(staff.school_id, deger)
-    if (sonuc.error) return hataMetni(sonuc.error, { tur: 'ogrenci', no: deger.student_no })
-    if (sonuc.mesaj) return sonuc.mesaj
-
-    await yukle()
-    setForm(null)
-    setBilgi(duzenlenen ? `${deger.full_name} güncellendi.` : `${deger.full_name} (${deger.student_no}) eklendi.`)
-    return ''
+  async function formKaydet(deger, degisenler) {
+    const sonuc = await kaydet(form.ogrenci, deger, degisenler)
+    if (!sonuc) setForm(null)
+    return sonuc
   }
 
-  async function sil(ogrenci) {
+  // Arşivden geri alma: parametre gerekmediği için pencere yerine doğrudan önizleme + onay penceresi
+  async function geriAl(ogrenciler_) {
     setBilgi('')
-    const durum = silmeDurumu(ogrenci.id, puanSayilari)
-    if (!durum.izin) return setHata(durum.neden)
-    if (!window.confirm(silmeOnayMetni(ogrenci))) return
+    const onizleme = topluOnizleme('geri_al', ogrenciler_, {}, { puanSayilari, bugun: bugunTarihi() })
+    if (!onizleme.uygulanabilir) return setHata(onizleme.hatalar.join(' '))
+    if (!window.confirm(onizleme.onay)) return
+    const sonuc = await topluUygula('geri_al', {}, onizleme.istek)
+    if (sonuc.hata) return setHata(sonuc.hata)
+    setSecili(new Set())
+  }
 
-    const sonuc = await ogrenciSil(ogrenci.id)
-    if (sonuc.error) return setHata(hataMetni(sonuc.error, { tur: 'ogrenci' }))
-    if (sonuc.mesaj) return setHata(sonuc.mesaj)
-    await yukle()
-    setBilgi(`${ogrenci.full_name} (${ogrenci.student_no}) silindi.`)
+  function topluIslem(islem) {
+    setBilgi('')
+    if (islem === 'geri_al') return geriAl(seciliListe)
+    setToplu({ islem, secilenler: seciliListe })
+  }
+
+  async function topluPenceredenUygula(islem, ayar, istek) {
+    const sonuc = await topluUygula(islem, ayar, istek)
+    if (!sonuc.hata) {
+      setToplu(null)
+      setSecili(new Set())
+    }
+    return sonuc
   }
 
   return (
@@ -148,17 +131,29 @@ export default function Students() {
             kademe={kademe}
             sube={sube}
             arama={arama}
+            ayrilanlar={ayrilanlar}
             subeler={subeler}
             onKademe={kademeDegisti}
             onSube={setSube}
             onArama={setArama}
+            onAyrilanlar={setAyrilanlar}
           />
 
           <p className="text-sm text-gray-400 mb-3">
-            Toplam <b className="text-gray-200">{ogrenciler.length}</b> öğrenci
-            {pasifSayisi > 0 && <> ({pasifSayisi} pasif)</>} · Gösterilen{' '}
+            Toplam <b className="text-gray-200">{ogrenciler.length}</b> öğrenci (aktif{' '}
+            <b className="text-gray-200">{ogrenciler.length - ayrilanSayisi}</b>, ayrılan{' '}
+            <b className="text-gray-200">{ayrilanSayisi}</b>) · Gösterilen{' '}
             <b className="text-blue-400">{gosterilen.length}</b>
           </p>
+
+          {seciliListe.length > 0 && (
+            <StudentBulkBar
+              seciliSayisi={seciliListe.length}
+              gorunenSayisi={gosterilen.length}
+              onIslem={topluIslem}
+              onTemizle={() => setSecili(new Set())}
+            />
+          )}
 
           {yukleniyor ? (
             <p className="text-gray-400">Yükleniyor…</p>
@@ -172,10 +167,18 @@ export default function Students() {
             <StudentTable
               liste={gosterilen}
               puanSayilari={puanSayilari}
+              secili={secili}
+              onSecimDegistir={(id) => setSecili((s) => secimiDegistir(s, id))}
+              onHepsiniSec={(sec) => setSecili(sec ? hepsiniSec(gosterilen) : new Set())}
               onDuzenle={(o) => {
                 setBilgi('')
                 setForm({ ogrenci: o })
               }}
+              onArsivle={(o) => {
+                setBilgi('')
+                setToplu({ islem: 'arsivle', secilenler: [o] })
+              }}
+              onGeriAl={(o) => geriAl([o])}
               onSil={sil}
             />
           )}
@@ -187,8 +190,18 @@ export default function Students() {
           ogrenci={form.ogrenci}
           mevcutlar={ogrenciler}
           puanSayilari={puanSayilari}
-          onKaydet={kaydet}
+          onKaydet={formKaydet}
           onKapat={() => setForm(null)}
+        />
+      )}
+      {toplu && (
+        <StudentBulkDialog
+          islem={toplu.islem}
+          secilenler={toplu.secilenler}
+          tumOgrenciler={ogrenciler}
+          puanSayilari={puanSayilari}
+          onUygula={topluPenceredenUygula}
+          onKapat={() => setToplu(null)}
         />
       )}
     </div>
