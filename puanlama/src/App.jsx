@@ -9,6 +9,7 @@ import StudentImport from './pages/StudentImport'
 import ScoreEntry from './pages/ScoreEntry'
 import ChangePassword from './pages/ChangePassword'
 import Ranking from './pages/Ranking'
+import UnitResults from './pages/UnitResults'
 
 // Tüm sayfaları saran kök: oturum bilgisi her sayfada kullanılabilir.
 function Kok() {
@@ -56,6 +57,15 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <Ranking />
+          </ProtectedRoute>
+        ),
+      },
+      // Ünite Sonuçları: yönetici de öğretmen de kullanır; veri wc_unit_results ile tüm kademe için gelir (salt okunur).
+      {
+        path: '/unite-sonuclari',
+        element: (
+          <ProtectedRoute>
+            <UnitResults />
           </ProtectedRoute>
         ),
       },

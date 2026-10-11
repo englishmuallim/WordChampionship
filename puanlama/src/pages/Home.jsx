@@ -7,6 +7,7 @@ const ROL_ADI = { admin: 'Yönetici', teacher: 'Öğretmen' }
 const MENU = [
   { ad: 'Puan Girişi', roller: ['admin', 'teacher'], yol: '/puan-girisi' },
   { ad: 'Sıralama', roller: ['admin', 'teacher'], yol: '/siralama' },
+  { ad: 'Ünite Sonuçları', roller: ['admin', 'teacher'], yol: '/unite-sonuclari' },
   { ad: 'Sezon ve Sınavlar', roller: ['admin'], yol: '/sezon-sinavlar' },
   { ad: 'Öğrenciler', roller: ['admin'], yol: '/ogrenciler' },
 ]

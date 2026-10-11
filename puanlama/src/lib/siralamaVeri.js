@@ -47,3 +47,20 @@ export async function sinavPuanlariniGetir(sinavIdleri) {
   }
   return { data: hepsi }
 }
+
+// Ünite Sonuçları için ham kayıtlar: seçilen ünite dahil ona kadarki girdi/kopya kayıtları (yalnızca aktif öğrenciler).
+// Fonksiyon yönetici ve öğretmen için tüm kademeyi verir. Tek istekte en çok 1000 satır geldiği için sayfa sayfa çekilir
+// (fonksiyon öğrenci ve ünite sırasıyla döndüğü için sayfalar tutarlıdır).
+export async function uniteSonuclariGetir(sezonId, kademe, uniteNo) {
+  const sayfa = 1000
+  const hepsi = []
+  for (let bas = 0; ; bas += sayfa) {
+    const { data, error } = await supabase
+      .rpc('wc_unit_results', { p_season_id: sezonId, p_grade: kademe, p_unit_no: uniteNo })
+      .range(bas, bas + sayfa - 1)
+    if (error) return { error }
+    hepsi.push(...data)
+    if (data.length < sayfa) break
+  }
+  return { data: hepsi }
+}

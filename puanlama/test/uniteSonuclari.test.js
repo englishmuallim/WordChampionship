@@ -10,6 +10,8 @@ import {
   otomatikSutunSayisi,
   sutunlaraBol,
   satirOlculeri,
+  fonksiyonYokMu,
+  FONKSIYON_YOK_MESAJI,
 } from '../src/lib/uniteSonuclari.js'
 
 // wc_unit_results satırı (sahte veri; 20 soru × 5 puan)
@@ -175,4 +177,12 @@ test('satır ölçüleri: çok satırda küçülür, az satırda 40 px ile sın�
   assert.equal(satirOlculeri(3).satir, 40)
   assert.equal(satirOlculeri(500).satir, 18)
   assert.ok(Math.abs(satirOlculeri(25).yazi - satirOlculeri(25).satir * 0.58) < 1e-9)
+})
+
+test('fonksiyon veritabanında yoksa (PGRST202 / 42883) tanınır, diğer hatalar tanınmaz', () => {
+  assert.equal(fonksiyonYokMu({ code: 'PGRST202' }), true)
+  assert.equal(fonksiyonYokMu({ code: '42883' }), true)
+  assert.equal(fonksiyonYokMu({ code: '42501' }), false)
+  assert.equal(fonksiyonYokMu(null), false)
+  assert.match(FONKSIYON_YOK_MESAJI, /wc_unit_results/)
 })

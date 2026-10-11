@@ -1,0 +1,81 @@
+@import "@fontsource/carlito/latin-400.css";
+@import "@fontsource/carlito/latin-700.css";
+@import "@fontsource/carlito/latin-ext-400.css";
+@import "@fontsource/carlito/latin-ext-700.css";
+
+/* Çıktı alanı: ekran görüntüsü ve yazdırma için beyaz, yatay, sabit genişlikli sayfa */
+.cikti {
+  box-sizing: border-box;
+  width: 1500px;
+  padding: 28px 40px 36px;
+  background: #fff;
+  color: #111;
+  font-family: Calibri, Carlito, sans-serif;
+}
+.cikti-serit {
+  display: flex;
+  align-items: center;
+  border-bottom: 4px solid #c8102e;
+  padding-bottom: 14px;
+  margin-bottom: 20px;
+}
+.cikti-serit img {
+  width: 140px;
+  height: 140px;
+  flex: none;
+}
+.cikti-baslik {
+  flex: 1;
+  text-align: center;
+  padding-right: 140px; /* logoyla dengeleyip başlığı şeridin ortasında tutar */
+}
+.cikti-baslik h1,
+.cikti-baslik h2,
+.cikti-baslik h3 {
+  margin: 3px 0;
+  font-weight: 700;
+  color: #0b1f4d;
+}
+.cikti-baslik h1 { font-size: 30px; }
+.cikti-baslik h2 { font-size: 50px; color: #c8102e; letter-spacing: 2px; }
+.cikti-baslik h3 { font-size: 32px; }
+
+.cikti-sutunlar {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: center;
+}
+.cikti-sutunlar table {
+  flex: 1;
+  border-collapse: collapse;
+}
+.cikti-tek table {
+  flex: none;
+  width: 950px; /* tek sütunda tablo çok geniş yayılmasın */
+}
+.cikti th {
+  background: #0b1f4d;
+  color: #fff;
+  border: 1px solid #0b1f4d;
+}
+.cikti td {
+  border: 1px solid #d1d5db;
+  text-align: center;
+}
+.cikti td:nth-child(2) {
+  text-align: left;
+  padding-left: 8px;
+}
+.cikti tbody tr:nth-child(odd) td { background: #eceef1; }
+.cikti tbody tr:nth-child(even) td { background: #fff; }
+.cikti tbody tr.tam-puan td { color: #1d4ed8; font-weight: 700; }
+
+/* Yazdırma: A4 yatay, yalnızca çıktı alanı. 1500 px genişlik ~281 mm yazdırılabilir alana sığacak şekilde küçültülür. */
+@page { size: A4 landscape; margin: 8mm; }
+@media print {
+  html, body { background: #fff !important; }
+  .yazdirma-gizle { display: none !important; }
+  .cikti-kap { overflow: visible !important; border: 0 !important; padding: 0 !important; }
+  .cikti { zoom: 0.68; break-inside: avoid; }
+}

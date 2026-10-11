@@ -117,3 +117,13 @@ export function satirOlculeri(sutundakiSatirSayisi) {
   const satir = Math.max(18, Math.min(40, bos / (sutundakiSatirSayisi + 1))) // +1: sütun başlık satırı
   return { satir, yazi: satir * 0.58 }
 }
+
+// wc_unit_results henüz veritabanında yoksa (SQL çalıştırılmadıysa) PostgREST "fonksiyon bulunamadı" der.
+// Bu durumda ne yapılacağı açıkça söylenir; diğer hatalar çağıran tarafın genel hata metnine bırakılır.
+export function fonksiyonYokMu(error) {
+  return Boolean(error) && (error.code === 'PGRST202' || error.code === '42883')
+}
+
+export const FONKSIYON_YOK_MESAJI =
+  'Ünite sonuçları için gerekli veritabanı fonksiyonu (wc_unit_results) henüz kurulmamış. ' +
+  'wc_unit_results.sql dosyası Supabase SQL editöründe çalıştırıldıktan sonra sayfa çalışacaktır.'
