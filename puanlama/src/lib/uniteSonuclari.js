@@ -139,3 +139,27 @@ export function ekranOlcegi(kapGenisligi) {
   if (!(kapGenisligi > 0)) return 1
   return Math.min(1, kapGenisligi / CIKTI_GENISLIGI)
 }
+
+// Paylaşma menüsü bu tarayıcıda dosya paylaşabiliyor mu? nav: navigator, dosya: gerçek küçük bir File.
+// canShare yoksa ya da hata fırlatırsa false (Paylaş düğmesi gösterilmez).
+export function paylasimDestekleniyorMu(nav, dosya) {
+  try {
+    return typeof nav?.canShare === 'function' && nav.canShare({ files: [dosya] }) === true
+  } catch {
+    return false
+  }
+}
+
+// Kullanıcı paylaşma menüsünü kapattı mı? Bu bir hata sayılmaz: sessizce dönülür.
+export function paylasimIptalMi(hata) {
+  return hata?.name === 'AbortError'
+}
+
+// Paylaşma hatası için kullanıcıya gösterilecek Türkçe mesaj (iptal için mesaj yok: null)
+export function paylasimHataMesaji(hata) {
+  if (paylasimIptalMi(hata)) return null
+  if (hata?.name === 'NotAllowedError') {
+    return 'Paylaşma izni alınamadı. Tekrar dene ya da İndir düğmesini kullan.'
+  }
+  return 'Paylaşılamadı. İndir düğmesini kullanabilirsin.'
+}

@@ -1,6 +1,8 @@
-// Çıktı alanını PNG olarak üretir; dokunmatik cihazda paylaşma menüsünü, olmazsa indirmeyi kullanır.
+// Çıktı alanını PNG olarak üretir; indirir ya da paylaşma menüsüne gönderir (iki ayrı işlem).
 // html-to-image yalnızca gerektiğinde yüklenir (sayfa açılışını şişirmez).
 // Yazı tipleri (Carlito) ve logo kendi sunucumuzdan geldiği için harici istek yapılmaz.
+
+import { paylasimIptalMi } from './uniteSonuclari'
 
 const PIKSEL_ORANI = 2
 
@@ -17,11 +19,17 @@ export async function pngUret(dugum) {
   return blob
 }
 
-function dokunmatikMi() {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+// Gerçek (geçerli) 1x1 PNG. Destek denemesinde boş dosya yerine bu kullanılır: bazı tarayıcılar boş dosyayı reddeder.
+const KUCUK_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
+
+export function denemeDosyasi() {
+  const bayt = Uint8Array.from(atob(KUCUK_PNG), (c) => c.charCodeAt(0))
+  return new File([bayt], 'deneme.png', { type: 'image/png' })
 }
 
-function indir(blob, dosyaAdi) {
+// Doğrudan dosya indirir; paylaşma menüsüne hiç dokunmaz (her cihazda aynı).
+export function pngIndir(blob, dosyaAdi) {
   const adres = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = adres
@@ -32,20 +40,15 @@ function indir(blob, dosyaAdi) {
   setTimeout(() => URL.revokeObjectURL(adres), 10000)
 }
 
-// Dokunmatik cihazda önce paylaşma menüsü; desteklenmiyorsa, iptal edilirse ya da hata verirse normal indirme.
-// Masaüstünde doğrudan indirme. Döner: 'paylasildi' | 'indirildi'
-export async function pngPaylasVeyaIndir(blob, dosyaAdi) {
-  if (dokunmatikMi() && typeof navigator.canShare === 'function') {
-    const dosya = new File([blob], dosyaAdi, { type: 'image/png' })
-    if (navigator.canShare({ files: [dosya] })) {
-      try {
-        await navigator.share({ files: [dosya], title: dosyaAdi })
-        return 'paylasildi'
-      } catch {
-        // iptal ya da (Safari'de uzun beklemeden sonra) izin hatası: indirmeye düşülür
-      }
-    }
+// Paylaşma menüsünü açar. Döner: 'paylasildi' | 'iptal' (kullanıcı menüyü kapattı: hiçbir şey yapılmaz).
+// Diğer hatalar (ör. NotAllowedError) çağırana fırlatılır.
+export async function pngPaylas(blob, dosyaAdi) {
+  const dosya = new File([blob], dosyaAdi, { type: 'image/png' })
+  try {
+    await navigator.share({ files: [dosya], title: dosyaAdi })
+    return 'paylasildi'
+  } catch (hata) {
+    if (paylasimIptalMi(hata)) return 'iptal'
+    throw hata
   }
-  indir(blob, dosyaAdi)
-  return 'indirildi'
 }

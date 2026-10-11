@@ -14,6 +14,9 @@ import {
   FONKSIYON_YOK_MESAJI,
   pngDosyaAdi,
   ekranOlcegi,
+  paylasimDestekleniyorMu,
+  paylasimIptalMi,
+  paylasimHataMesaji,
 } from '../src/lib/uniteSonuclari.js'
 
 // wc_unit_results satırı (sahte veri; 20 soru × 5 puan)
@@ -200,4 +203,30 @@ test('ekran ölçeği: kaba sığdırır, büyütmez, geçersiz ölçüde 1', ()
   assert.ok(Math.abs(ekranOlcegi(390) - 0.26) < 1e-9)
   assert.equal(ekranOlcegi(0), 1)
   assert.equal(ekranOlcegi(undefined), 1)
+})
+
+test('paylaşım desteği: canShare yoksa, false dönerse ya da hata fırlatırsa Paylaş gösterilmez', () => {
+  const dosya = { ad: 'deneme.png' }
+  assert.equal(paylasimDestekleniyorMu({ canShare: () => true }, dosya), true)
+  assert.equal(paylasimDestekleniyorMu({ canShare: () => false }, dosya), false)
+  assert.equal(paylasimDestekleniyorMu({}, dosya), false)
+  assert.equal(paylasimDestekleniyorMu(undefined, dosya), false)
+  assert.equal(paylasimDestekleniyorMu({ canShare: () => { throw new Error('x') } }, dosya), false)
+  // dosya canShare'e { files: [dosya] } olarak verilir
+  let alinan
+  paylasimDestekleniyorMu({ canShare: (v) => ((alinan = v), true) }, dosya)
+  assert.deepEqual(alinan, { files: [dosya] })
+})
+
+test('paylaşım iptali (AbortError) tanınır; hata sayılmaz, mesajı yoktur', () => {
+  assert.equal(paylasimIptalMi({ name: 'AbortError' }), true)
+  assert.equal(paylasimIptalMi({ name: 'NotAllowedError' }), false)
+  assert.equal(paylasimIptalMi(null), false)
+  assert.equal(paylasimHataMesaji({ name: 'AbortError' }), null)
+})
+
+test('paylaşım hata mesajları: izin hatası ve diğerleri anlaşılır Türkçe', () => {
+  assert.match(paylasimHataMesaji({ name: 'NotAllowedError' }), /izni alınamadı.*İndir/)
+  assert.match(paylasimHataMesaji({ name: 'TypeError' }), /Paylaşılamadı.*İndir/)
+  assert.match(paylasimHataMesaji(new Error('x')), /Paylaşılamadı/)
 })

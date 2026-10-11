@@ -10,12 +10,14 @@ import {
   fonksiyonYokMu,
   ogrenciSatirlari,
   otomatikSutunSayisi,
+  paylasimDestekleniyorMu,
+  paylasimHataMesaji,
   pngDosyaAdi,
   satirOlculeri,
   sonuclariSirala,
   sutunlaraBol,
 } from '../lib/uniteSonuclari'
-import { pngPaylasVeyaIndir, pngUret } from '../lib/pngIndir'
+import { denemeDosyasi, pngIndir, pngPaylas, pngUret } from '../lib/pngIndir'
 import { KADEMELER } from '../components/ExamForm'
 import { etiketSinifi, girdiSinifi, kart } from '../lib/stil'
 import logo from '../assets/okul-logo.png'
@@ -111,19 +113,38 @@ export default function UnitResults() {
     return () => gozlemci.disconnect()
   }, [gorunur])
 
-  // PNG: cihaz ekranı ne olursa olsun çıktı alanı 1500 px genişlikte, 2x piksel oranıyla üretilir
+  // PNG: cihaz ekranı ne olursa olsun çıktı alanı 1500 px genişlikte, 2x piksel oranıyla üretilir.
+  // İki ayrı işlem: İndir (doğrudan dosya) ve Paylaş (paylaşma menüsü; desteklenmiyorsa düğme gösterilmez).
   const [png, setPng] = useState({ durum: 'bos', mesaj: '' }) // durum: 'bos' | 'uretiliyor' | 'tamam' | 'hata'
+  const [paylasabilir, setPaylasabilir] = useState(false)
+  // Destek sayfa açılınca bir kez denenir; boş değil, gerçek küçük bir PNG dosyasıyla (bazı tarayıcılar boş dosyayı reddeder)
+  useEffect(() => setPaylasabilir(paylasimDestekleniyorMu(navigator, denemeDosyasi())), [])
   // Seçim değişince eski sonuç mesajı silinir
   useEffect(() => setPng({ durum: 'bos', mesaj: '' }), [kademe, uniteNo])
-  async function pngAl() {
+
+  async function pngAl(islem) {
     setPng({ durum: 'uretiliyor', mesaj: '' })
+    let blob
     try {
-      const blob = await pngUret(ciktiRef.current)
-      const sonuc = await pngPaylasVeyaIndir(blob, pngDosyaAdi(kademe, uniteNo))
-      setPng({ durum: 'tamam', mesaj: sonuc === 'paylasildi' ? 'Resim paylaşma menüsüne gönderildi.' : 'Resim indirildi.' })
+      blob = await pngUret(ciktiRef.current)
     } catch (e) {
       console.error('PNG hatası:', e)
       setPng({ durum: 'hata', mesaj: 'Resim oluşturulamadı. Sayfayı yenileyip tekrar dene.' })
+      return
+    }
+    const ad = pngDosyaAdi(kademe, uniteNo)
+    if (islem === 'indir') {
+      pngIndir(blob, ad)
+      setPng({ durum: 'tamam', mesaj: 'Resim indirildi.' })
+      return
+    }
+    try {
+      const sonuc = await pngPaylas(blob, ad)
+      // Menü iptal edilirse hiçbir şey indirilmez ve mesaj gösterilmez
+      setPng(sonuc === 'paylasildi' ? { durum: 'tamam', mesaj: 'Resim paylaşma menüsüne gönderildi.' } : { durum: 'bos', mesaj: '' })
+    } catch (e) {
+      console.error('Paylaşma hatası:', e)
+      setPng({ durum: 'hata', mesaj: paylasimHataMesaji(e) })
     }
   }
 
@@ -218,14 +239,26 @@ export default function UnitResults() {
               </div>
               {gorunur && (
                 <div className="mt-5">
-                  <button
-                    type="button"
-                    onClick={pngAl}
-                    disabled={png.durum === 'uretiliyor'}
-                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-extrabold text-lg py-3 px-8 rounded-xl transition-colors"
-                  >
-                    {png.durum === 'uretiliyor' ? 'Resim hazırlanıyor…' : 'Resim olarak indir (PNG)'}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={() => pngAl('indir')}
+                      disabled={png.durum === 'uretiliyor'}
+                      className="w-full sm:w-auto min-h-14 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-extrabold text-lg py-3 px-8 rounded-xl transition-colors"
+                    >
+                      {png.durum === 'uretiliyor' ? 'Resim hazırlanıyor…' : 'İndir (PNG)'}
+                    </button>
+                    {paylasabilir && (
+                      <button
+                        type="button"
+                        onClick={() => pngAl('paylas')}
+                        disabled={png.durum === 'uretiliyor'}
+                        className="w-full sm:w-auto min-h-14 bg-gray-700 hover:bg-gray-600 disabled:opacity-60 text-white font-extrabold text-lg py-3 px-8 rounded-xl border border-gray-500 transition-colors"
+                      >
+                        Paylaş
+                      </button>
+                    )}
+                  </div>
                   {png.mesaj && (
                     <p className={`text-sm mt-2 ${png.durum === 'hata' ? 'text-red-300' : 'text-green-400'}`}>{png.mesaj}</p>
                   )}
