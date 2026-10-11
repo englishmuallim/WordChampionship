@@ -3,7 +3,8 @@
 @import "@fontsource/carlito/latin-ext-400.css";
 @import "@fontsource/carlito/latin-ext-700.css";
 
-/* Çıktı alanı: ekran görüntüsü ve yazdırma için beyaz, yatay, sabit genişlikli sayfa */
+/* Çıktı alanı: PNG ve ekran görüntüsü için beyaz, yatay, sabit genişlikli (1500 px) sayfa.
+   Ekranda ölçeklenmesi dışarıdaki kapta yapılır; bu öğenin kendisi hiç ölçeklenmez. */
 .cikti {
   box-sizing: border-box;
   width: 1500px;
@@ -70,12 +71,3 @@
 .cikti tbody tr:nth-child(odd) td { background: #eceef1; }
 .cikti tbody tr:nth-child(even) td { background: #fff; }
 .cikti tbody tr.tam-puan td { color: #1d4ed8; font-weight: 700; }
-
-/* Yazdırma: A4 yatay, yalnızca çıktı alanı. 1500 px genişlik ~281 mm yazdırılabilir alana sığacak şekilde küçültülür. */
-@page { size: A4 landscape; margin: 8mm; }
-@media print {
-  html, body { background: #fff !important; }
-  .yazdirma-gizle { display: none !important; }
-  .cikti-kap { overflow: visible !important; border: 0 !important; padding: 0 !important; }
-  .cikti { zoom: 0.68; break-inside: avoid; }
-}

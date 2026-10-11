@@ -12,6 +12,8 @@ import {
   satirOlculeri,
   fonksiyonYokMu,
   FONKSIYON_YOK_MESAJI,
+  pngDosyaAdi,
+  ekranOlcegi,
 } from '../src/lib/uniteSonuclari.js'
 
 // wc_unit_results satırı (sahte veri; 20 soru × 5 puan)
@@ -185,4 +187,17 @@ test('fonksiyon veritabanında yoksa (PGRST202 / 42883) tanınır, diğer hatala
   assert.equal(fonksiyonYokMu({ code: '42501' }), false)
   assert.equal(fonksiyonYokMu(null), false)
   assert.match(FONKSIYON_YOK_MESAJI, /wc_unit_results/)
+})
+
+test('PNG dosya adı', () => {
+  assert.equal(pngDosyaAdi(5, 2), 'word-championship-5-kademe-2-unite.png')
+})
+
+test('ekran ölçeği: kaba sığdırır, büyütmez, geçersiz ölçüde 1', () => {
+  assert.equal(ekranOlcegi(1500), 1)
+  assert.equal(ekranOlcegi(1920), 1)
+  assert.equal(ekranOlcegi(750), 0.5)
+  assert.ok(Math.abs(ekranOlcegi(390) - 0.26) < 1e-9)
+  assert.equal(ekranOlcegi(0), 1)
+  assert.equal(ekranOlcegi(undefined), 1)
 })

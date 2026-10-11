@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { hataMetni } from '../lib/hatalar'
 import { sezonVeSinavlar, uniteSonuclariGetir } from '../lib/siralamaVeri'
 import {
   FONKSIYON_YOK_MESAJI,
+  CIKTI_GENISLIGI,
   baslikMetni,
+  ekranOlcegi,
   fonksiyonYokMu,
   ogrenciSatirlari,
   otomatikSutunSayisi,
+  pngDosyaAdi,
   satirOlculeri,
   sonuclariSirala,
   sutunlaraBol,
 } from '../lib/uniteSonuclari'
+import { pngPaylasVeyaIndir, pngUret } from '../lib/pngIndir'
 import { KADEMELER } from '../components/ExamForm'
 import { etiketSinifi, girdiSinifi, kart } from '../lib/stil'
 import logo from '../assets/okul-logo.png'
@@ -88,15 +92,50 @@ export default function UnitResults() {
   const olcu = satirOlculeri(sutunlar[0]?.length ?? 0)
   const baslik = baslikMetni(kademe, uniteNo || 1)
 
+  // Ekranda çıktı alanı kabın genişliğine sığdırılır (kaydırma yok). Yalnızca görünümü etkiler, PNG'yi değil.
+  const kapRef = useRef(null)
+  const ciktiRef = useRef(null)
+  const [olcek, setOlcek] = useState(1)
+  const [ciktiYuksekligi, setCiktiYuksekligi] = useState(0)
+  const gorunur = guncel && satirlar.length > 0
+  useEffect(() => {
+    if (!gorunur) return
+    const olc = () => {
+      setOlcek(ekranOlcegi(kapRef.current.clientWidth))
+      setCiktiYuksekligi(ciktiRef.current.offsetHeight)
+    }
+    olc()
+    const gozlemci = new ResizeObserver(olc)
+    gozlemci.observe(kapRef.current)
+    gozlemci.observe(ciktiRef.current)
+    return () => gozlemci.disconnect()
+  }, [gorunur])
+
+  // PNG: cihaz ekranı ne olursa olsun çıktı alanı 1500 px genişlikte, 2x piksel oranıyla üretilir
+  const [png, setPng] = useState({ durum: 'bos', mesaj: '' }) // durum: 'bos' | 'uretiliyor' | 'tamam' | 'hata'
+  // Seçim değişince eski sonuç mesajı silinir
+  useEffect(() => setPng({ durum: 'bos', mesaj: '' }), [kademe, uniteNo])
+  async function pngAl() {
+    setPng({ durum: 'uretiliyor', mesaj: '' })
+    try {
+      const blob = await pngUret(ciktiRef.current)
+      const sonuc = await pngPaylasVeyaIndir(blob, pngDosyaAdi(kademe, uniteNo))
+      setPng({ durum: 'tamam', mesaj: sonuc === 'paylasildi' ? 'Resim paylaşma menüsüne gönderildi.' : 'Resim indirildi.' })
+    } catch (e) {
+      console.error('PNG hatası:', e)
+      setPng({ durum: 'hata', mesaj: 'Resim oluşturulamadı. Sayfayı yenileyip tekrar dene.' })
+    }
+  }
+
   return (
-    <div className="min-h-screen p-6 md:p-10">
+    <div className="min-h-screen p-4 sm:p-6 md:p-10 space-y-6">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="yazdirma-gizle space-y-6">
+        <div className="space-y-6">
           <header className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-700 pb-5">
             <div>
               <h1 className="text-3xl font-extrabold text-blue-400 tracking-tight">Ünite Sonuçları</h1>
               <p className="text-gray-400 mt-1">
-                {sezon ? `Sezon ${sezon.name} · aşağıdaki beyaz alanın ekran görüntüsünü alabilirsin` : 'Velilere paylaşılacak sonuç listesi'}
+                {sezon ? `Sezon ${sezon.name} · sonuç listesini resim olarak indirebilirsin` : 'Velilere paylaşılacak sonuç listesi'}
               </p>
             </div>
             <Link
@@ -177,14 +216,20 @@ export default function UnitResults() {
                   )}
                 </p>
               </div>
-              {guncel && (
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="mt-4 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-2 rounded-lg border border-gray-600 transition-colors font-bold"
-                >
-                  Yazdır (A4 yatay)
-                </button>
+              {gorunur && (
+                <div className="mt-5">
+                  <button
+                    type="button"
+                    onClick={pngAl}
+                    disabled={png.durum === 'uretiliyor'}
+                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-extrabold text-lg py-3 px-8 rounded-xl transition-colors"
+                  >
+                    {png.durum === 'uretiliyor' ? 'Resim hazırlanıyor…' : 'Resim olarak indir (PNG)'}
+                  </button>
+                  {png.mesaj && (
+                    <p className={`text-sm mt-2 ${png.durum === 'hata' ? 'text-red-300' : 'text-green-400'}`}>{png.mesaj}</p>
+                  )}
+                </div>
               )}
               {uniteler.length === 0 && (
                 <p className="text-sm text-gray-500 mt-3">Bu kademe için sınav tanımlı değil.</p>
@@ -196,9 +241,12 @@ export default function UnitResults() {
           )}
         </div>
 
-        {guncel && satirlar.length > 0 && (
-          <div className="cikti-kap overflow-x-auto border border-gray-700 rounded-lg">
-            <div className={`cikti ${sutunSayisi === 1 ? 'cikti-tek' : ''}`} lang="tr">
+      </div>
+
+      {gorunur && (
+        <div ref={kapRef} className="max-w-[1500px] mx-auto" style={{ height: ciktiYuksekligi * olcek }}>
+          <div style={{ width: CIKTI_GENISLIGI, transform: `scale(${olcek})`, transformOrigin: 'top left' }}>
+            <div ref={ciktiRef} className={`cikti ${sutunSayisi === 1 ? 'cikti-tek' : ''}`} lang="tr">
               <div className="cikti-serit">
                 <img src={logo} alt="" />
                 <div className="cikti-baslik">
@@ -233,8 +281,8 @@ export default function UnitResults() {
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

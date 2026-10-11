@@ -127,3 +127,15 @@ export function fonksiyonYokMu(error) {
 export const FONKSIYON_YOK_MESAJI =
   'Ünite sonuçları için gerekli veritabanı fonksiyonu (wc_unit_results) henüz kurulmamış. ' +
   'wc_unit_results.sql dosyası Supabase SQL editöründe çalıştırıldıktan sonra sayfa çalışacaktır.'
+
+// İndirilen PNG'nin dosya adı
+export function pngDosyaAdi(kademe, uniteNo) {
+  return `word-championship-${kademe}-kademe-${uniteNo}-unite.png`
+}
+
+// Ekranda çıktı alanını kabın genişliğine sığdıran ölçek (büyütmez; hiçbir zaman 1'i aşmaz).
+// Yalnızca ekran görünümü içindir; indirilen PNG her zaman tam boyuttur.
+export function ekranOlcegi(kapGenisligi) {
+  if (!(kapGenisligi > 0)) return 1
+  return Math.min(1, kapGenisligi / CIKTI_GENISLIGI)
+}
