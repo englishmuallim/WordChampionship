@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   numaraSirala,
+  adaGoreSirala,
   kayittanSatir,
   degerCoz,
   satirDegerlendir,
@@ -414,4 +415,46 @@ test('yapıştırma: kopya olarak yapıştırılan satır dolu kutuyu değiştir
     { ogrenciId: 'b', deger: '', isaret: 'kopya' }, // zaten kopya: değişmez
   ]
   assert.equal(yapistirmaEtkisi(uygulanacak, satirlar), 1)
+})
+
+// --- adaGoreSirala: ad soyada göre Türkçe A-Z ---
+const adli = (ad, no = ad) => ({ id: no, student_no: no, full_name: ad })
+
+test('adaGoreSirala: Türkçe harfler kendi yerinde (Ç, Ğ, İ, I, Ö, Ş, Ü)', () => {
+  const beklenen = ['Cem', 'Çağla', 'Gül', 'Ğ. Kaan', 'Hakan', 'Irmak', 'İrem', 'Okan', 'Ömer', 'Selin', 'Şeyma', 'Ufuk', 'Ümit']
+  const sirali = adaGoreSirala([...beklenen].reverse().map((ad) => adli(ad))).map((o) => o.full_name)
+  assert.deepEqual(sirali, beklenen)
+})
+
+test('adaGoreSirala: büyük harfli adlar da aynı sırayı verir (ALİ < AYŞE < ÇAĞLA)', () => {
+  const s = adaGoreSirala([adli('ÇAĞLA ÖZ'), adli('AYŞE KAYA'), adli('ALİ CAN')]).map((o) => o.full_name)
+  assert.deepEqual(s, ['ALİ CAN', 'AYŞE KAYA', 'ÇAĞLA ÖZ'])
+})
+
+test('adaGoreSirala: ad eşitse öğrenci no sayısal sırayla', () => {
+  const s = adaGoreSirala([adli('Ali Kaya', '100'), adli('Ali Kaya', '9'), adli('Ali Kaya', '25')]).map((o) => o.student_no)
+  assert.deepEqual(s, ['9', '25', '100'])
+})
+
+test('adaGoreSirala: girdi dizisi bozulmaz ve girdi sırası sonucu değiştirmez', () => {
+  const girdi = [adli('Zeynep', '3'), adli('Ali', '2'), adli('Çağla', '1')]
+  const kopya = [...girdi]
+  const sirali = adaGoreSirala(girdi)
+  assert.deepEqual(girdi, kopya)
+  assert.notStrictEqual(sirali, girdi)
+  assert.deepEqual(adaGoreSirala([...girdi].reverse()).map((o) => o.id), sirali.map((o) => o.id))
+})
+
+test('adaGoreSirala: boş liste ve eksik ad hata vermez', () => {
+  assert.deepEqual(adaGoreSirala([]), [])
+  assert.equal(adaGoreSirala([{ id: 'x', student_no: '1' }, adli('Ali', '2')]).length, 2)
+})
+
+test('Biçim 1 yapıştırma ad sırasına göre uygulanır; Biçim 2 sıradan bağımsızdır (numaraya göre)', () => {
+  const ad = adaGoreSirala([adli('Zeynep', '1'), adli('Ali', '2'), adli('Çağla', '3')]) // Ali, Çağla, Zeynep
+  const b1 = yapistirmaCoz('10\n11\n12', ad, SORU)
+  assert.deepEqual(b1.uygulanacak.map((u) => [u.ogrenciId, u.deger]), [['2', '10'], ['3', '11'], ['1', '12']])
+  const b2 = yapistirmaCoz('1\t12\n2\t10\n3\t11', ad, SORU)
+  const harita = Object.fromEntries(b2.uygulanacak.map((u) => [u.ogrenciId, u.deger]))
+  assert.deepEqual(harita, { 1: '12', 2: '10', 3: '11' })
 })

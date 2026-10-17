@@ -11,6 +11,16 @@ export function numaraSirala(liste) {
   return [...liste].sort((a, b) => a.student_no.localeCompare(b.student_no, 'tr', { numeric: true }))
 }
 
+// Öğrencileri ad soyada göre Türkçe A-Z sıralar (Ç, Ğ, İ, I, Ö, Ş, Ü kendi yerinde); ad eşitse öğrenci numarası sayısal.
+// Girdi dizisini bozmaz, sıralı bir kopya döner.
+export function adaGoreSirala(liste) {
+  return [...liste].sort(
+    (a, b) =>
+      String(a.full_name ?? '').trim().localeCompare(String(b.full_name ?? '').trim(), 'tr') ||
+      String(a.student_no ?? '').localeCompare(String(b.student_no ?? ''), 'tr', { numeric: true })
+  )
+}
+
 // Kayıtlı puanı ekran satırına çevirir
 export function kayittanSatir(kayit) {
   if (!kayit) return { ...BOS_SATIR }

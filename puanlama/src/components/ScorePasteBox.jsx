@@ -30,7 +30,10 @@ export default function ScorePasteBox({ ogrenciler, soruSayisi, satirlar, onUygu
         </p>
         <ul className="space-y-1 pl-4 list-disc">
           <li>
-            <b className="text-gray-200">1 sütun — yalnızca doğru sayıları:</b> ekrandaki liste sırasıyla uygulanır.
+            <b className="text-gray-200">1 sütun — yalnızca doğru sayıları:</b> ekrandaki liste sırasıyla uygulanır.{' '}
+            <b className="text-amber-300">
+              Liste ad soyada göre A-Z sıralı; Excel'in aynı sırada olduğundan emin değilsen 2 veya 3 sütunlu biçimi kullan.
+            </b>{' '}
             Örnek: <code className="text-blue-300">20</code> ↵ <code className="text-blue-300">G</code> ↵{' '}
             <code className="text-blue-300">K</code> ↵ <code className="text-blue-300">15</code>
           </li>

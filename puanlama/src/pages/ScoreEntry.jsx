@@ -7,9 +7,9 @@ import { tumOgrencileriGetir } from '../lib/ogrenciler'
 import { personelAdlari, puanlariYaz, sinavPuanlariniGetir } from '../lib/puanlar'
 import {
   BOS_SATIR,
+  adaGoreSirala,
   kaydedilecekler,
   kayittanSatir,
-  numaraSirala,
   ozetHesapla,
   satirDegerlendir,
   yapistirmaUygula,
@@ -104,7 +104,7 @@ export default function ScoreEntry() {
   const sinav = sinavlar.find((s) => s.id === sinavId) ?? null
   const liste = useMemo(
     () =>
-      kademe && sube ? numaraSirala(aktifler.filter((o) => o.grade === Number(kademe) && o.class_name === sube)) : [],
+      kademe && sube ? adaGoreSirala(aktifler.filter((o) => o.grade === Number(kademe) && o.class_name === sube)) : [],
     [aktifler, kademe, sube]
   )
 
