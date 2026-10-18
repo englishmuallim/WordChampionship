@@ -558,3 +558,153 @@ test('elle düzeltme satırı: neden kırpılır, tür elle', () => {
     neden: 'Geri alındı',
   })
 })
+
+// ======================== Ödev Özeti (Aşama 4a) ========================
+import {
+  hareketAciklamasi,
+  ogrenciDokumu,
+  ozetSatirlariniHazirla,
+  ozetSirala,
+  ozetToplami,
+  sinavUyarilari,
+} from '../src/lib/odev.js'
+
+// sahte sezon: iki sınav (1. ve 2. ünite), 25 soru
+const SINAV1 = { id: 'E1', unit_no: 1, exam_date: '2026-10-20', question_count: 25 }
+const SINAV2 = { id: 'E2', unit_no: 2, exam_date: '2027-01-26', question_count: 25 }
+const ogrenci = (id, ad, no, sube = 'A', aktif = true) => ({ id, full_name: ad, student_no: no, class_name: sube, is_active: aktif })
+const puan = (exam, ogr, dogru, status = 'girdi') => ({ exam_id: exam, student_id: ogr, status, correct_count: status === 'girdi' ? dogru : null })
+const kon = (ogr, exam, tarih, toplam, gereken, ek = {}) => ({ id: `k${++sayac}`, student_id: ogr, kaynak_exam_id: exam, kontrol_tarihi: tarih, toplam_yazilan: toplam, gereken, iptal: false, created_at: `2026-11-01T10:00:${String(sayac).padStart(2, '0')}Z`, ...ek })
+const dz = (ogr, exam, tur, p, tarih, neden = null) => ({ id: `d${++sayac}`, student_id: ogr, kaynak_exam_id: exam, tur, puan: p, tarih, neden, created_at: `2026-11-02T10:00:${String(sayac).padStart(2, '0')}Z` })
+
+function ornekVeri() {
+  return {
+    ogrenciler: [ogrenci('z', 'Zeynep Çelik', '3'), ogrenci('a', 'Ali Yılmaz', '1'), ogrenci('c', 'Çağla Öz', '2'), ogrenci('g', 'Ayrılan Öğrenci', '9', 'A', false)],
+    sinavlar: [SINAV2, SINAV1], // sırasız verilir
+    puanlar: [
+      puan('E1', 'z', 25), // +2 otomatik (20 Ekim: 1. dönem)
+      puan('E1', 'a', 10), // 2 gerekli
+      puan('E1', 'c', 20), // +1 otomatik
+      puan('E2', 'c', 3), // 4 gerekli (2. ünite sonucu → 3. ünite ödevi)
+    ],
+    kontroller: [
+      kon('a', 'E1', '2026-11-03', 0, 2), // -2 (1. dönem)
+      kon('a', 'E1', '2026-11-10', 1, 2), // -1
+      kon('c', 'E2', '2027-02-02', 1, 4), // -3 (2. dönem)
+      kon('c', 'E2', '2027-02-09', 2, 4, { iptal: true, created_at: '2027-02-09T12:00:00Z' }), // iptal edilmiş
+    ],
+    duzeltmeler: [dz('z', 'E1', 'ekstra_arti', 1, '2026-10-27'), dz('a', 'E1', 'elle', 2, '2026-11-20', 'Puan düzeltildi')],
+  }
+}
+
+test('özet: artı, eksi, net; ekstra, elle düzeltme sayılır; iptal edilen kayıt sayılmaz; A-Z sıralı', () => {
+  const s = ozetSatirlariniHazirla({ ...ornekVeri(), donem: 'tumu' })
+  assert.deepEqual(s.map((x) => x.full_name), ['Ali Yılmaz', 'Ayrılan Öğrenci', 'Çağla Öz', 'Zeynep Çelik'])
+  const al = (ad) => s.find((x) => x.full_name === ad)
+  assert.deepEqual([al('Zeynep Çelik').arti, al('Zeynep Çelik').eksi, al('Zeynep Çelik').net], [3, 0, 3]) // 2 otomatik + 1 ekstra
+  assert.deepEqual([al('Ali Yılmaz').arti, al('Ali Yılmaz').eksi, al('Ali Yılmaz').net], [2, 3, -1]) // elle +2; eksi 2+1
+  // Çağla: 1. ünite 20 doğru → +1 otomatik; 2. ünite 3 doğru → 4 gerekli, kontrol 1 → -3 (iptal edilen 9 Şubat sayılmaz)
+  assert.deepEqual([al('Çağla Öz').arti, al('Çağla Öz').eksi, al('Çağla Öz').net], [1, 3, -2])
+  assert.equal(al('Ayrılan Öğrenci').aktif, false)
+  assert.deepEqual([al('Ayrılan Öğrenci').arti, al('Ayrılan Öğrenci').eksi], [0, 0]) // sınav kaydı yok: belirsiz
+})
+
+test('özet: dönem süzgeci hareketin tarihine göre', () => {
+  const al = (d, ad) => ozetSatirlariniHazirla({ ...ornekVeri(), donem: d }).find((x) => x.full_name === ad)
+  // Çağla: +1 (Ekim, 1. dönem), -3 (Şubat, 2. dönem)
+  assert.deepEqual([al(1, 'Çağla Öz').arti, al(1, 'Çağla Öz').eksi], [1, 0])
+  assert.deepEqual([al(2, 'Çağla Öz').arti, al(2, 'Çağla Öz').eksi], [0, 3])
+  // Ali: tüm hareketleri 1. dönemde (Kasım)
+  assert.deepEqual([al(1, 'Ali Yılmaz').arti, al(1, 'Ali Yılmaz').eksi], [2, 3])
+  assert.deepEqual([al(2, 'Ali Yılmaz').arti, al(2, 'Ali Yılmaz').eksi], [0, 0])
+})
+
+test('özet: Ödev Kontrolü ile aynı sayılar (odevDurumu ile birebir)', () => {
+  const v = ornekVeri()
+  const s = ozetSatirlariniHazirla({ ...v, donem: 'tumu' }).find((x) => x.full_name === 'Ali Yılmaz')
+  const d = odevDurumu({
+    bant: bantHesapla(v.puanlar.find((p) => p.exam_id === 'E1' && p.student_id === 'a'), 25),
+    sinavTarihi: SINAV1.exam_date,
+    kontrolSatirlari: v.kontroller.filter((x) => x.student_id === 'a'),
+    duzeltmeSatirlari: v.duzeltmeler.filter((x) => x.student_id === 'a'),
+  })
+  assert.deepEqual([s.arti, s.eksi, s.net], [d.arti, d.eksi, d.net])
+})
+
+test('özet: tarihsiz hareket yalnızca tümünde sayılır ve her durumda bildirilir', () => {
+  const v = ornekVeri()
+  v.sinavlar = [{ ...SINAV1, exam_date: null }, SINAV2]
+  const z = (donem) => ozetSatirlariniHazirla({ ...v, donem }).find((x) => x.full_name === 'Zeynep Çelik')
+  assert.deepEqual([z('tumu').arti, z('tumu').tarihsiz], [3, 1]) // otomatik +2 tarihsiz; ekstra +1 tarihli
+  assert.deepEqual([z(1).arti, z(1).tarihsiz], [1, 1]) // yalnızca ekstra (Ekim)
+  assert.deepEqual([z(2).arti, z(2).tarihsiz], [0, 1])
+})
+
+test('özet: girdi dizileri bozulmaz', () => {
+  const v = ornekVeri()
+  const kopya = JSON.parse(JSON.stringify(v))
+  ozetSatirlariniHazirla({ ...v, donem: 'tumu' })
+  assert.deepEqual(v, kopya)
+})
+
+test('özet: sıralama ölçütleri (ad / net azalan / net artan; eşitlikte ad)', () => {
+  const s = ozetSatirlariniHazirla({ ...ornekVeri(), donem: 'tumu' })
+  assert.deepEqual(ozetSirala(s, 'ad').map((x) => x.full_name), ['Ali Yılmaz', 'Ayrılan Öğrenci', 'Çağla Öz', 'Zeynep Çelik'])
+  assert.deepEqual(ozetSirala(s, 'net-azalan').map((x) => x.full_name), ['Zeynep Çelik', 'Ayrılan Öğrenci', 'Ali Yılmaz', 'Çağla Öz']) // 3, 0, -1, -2
+  assert.deepEqual(ozetSirala(s, 'net-artan').map((x) => x.full_name), ['Çağla Öz', 'Ali Yılmaz', 'Ayrılan Öğrenci', 'Zeynep Çelik'])
+  assert.deepEqual(ozetSirala(s).map((x) => x.full_name), ozetSirala(s, 'ad').map((x) => x.full_name))
+  const esit = [{ net: 1, full_name: 'Çağla', student_no: '2' }, { net: 1, full_name: 'Ali', student_no: '1' }, { net: 1, full_name: 'Zeynep', student_no: '3' }]
+  assert.deepEqual(ozetSirala(esit, 'net-azalan').map((x) => x.full_name), ['Ali', 'Çağla', 'Zeynep'])
+})
+
+test('özet toplamı', () => {
+  const s = ozetSatirlariniHazirla({ ...ornekVeri(), donem: 'tumu' })
+  assert.deepEqual(ozetToplami(s), { ogrenci: 4, arti: 6, eksi: 6, net: 0, tarihsiz: 0 })
+  assert.deepEqual(ozetToplami([]), { ogrenci: 0, arti: 0, eksi: 0, net: 0, tarihsiz: 0 })
+})
+
+test('döküm: ünite, tarih, tür, puan, açıklama; sıra ve dönem süzgeci', () => {
+  const s = ozetSatirlariniHazirla({ ...ornekVeri(), donem: 'tumu' }).find((x) => x.full_name === 'Ali Yılmaz')
+  assert.deepEqual(
+    s.dokum.map((d) => [d.odevUnite, d.tarih, d.turAdi, d.puan, d.aciklama]),
+    [
+      [2, '2026-11-03', 'Kontrol', -2, '2 gerekli, 0 yazdı'],
+      [2, '2026-11-10', 'Kontrol', -1, '2 gerekli, 1 yazdı'],
+      [2, '2026-11-20', 'Elle düzeltme', 2, 'Puan düzeltildi'],
+    ]
+  )
+  const cagla = ozetSatirlariniHazirla({ ...ornekVeri(), donem: 2 }).find((x) => x.full_name === 'Çağla Öz')
+  assert.deepEqual(cagla.dokum.map((d) => [d.odevUnite, d.puan]), [[3, -3]]) // yalnızca 2. dönem
+})
+
+test('döküm: tarihsiz satır sonda ve işaretli; yalnızca tümünde yer alır', () => {
+  const odevler = [{ odevUnite: 2, hareketler: [{ tur: 'otomatik', puan: 2, tarih: null }, { tur: 'ekstra', puan: 1, tarih: '2026-10-27', neden: null }] }]
+  const tumu = ogrenciDokumu(odevler, 'tumu')
+  assert.deepEqual(tumu.map((d) => [d.tur, d.tarihsiz]), [['ekstra', false], ['otomatik', true]])
+  assert.equal(ogrenciDokumu(odevler, 1).length, 1)
+  assert.equal(ogrenciDokumu(odevler, 2).length, 0)
+  assert.equal(hareketAciklamasi({ tur: 'kontrol', gereken: 3, toplam: 1 }), '3 gerekli, 1 yazdı')
+  assert.equal(hareketAciklamasi({ tur: 'elle', neden: 'x' }), 'x')
+})
+
+test('kontrol hareketleri toplam ve gereken taşır (döküm açıklaması için)', () => {
+  const d = odevDurumu({ bant: yazma(3), kontrolSatirlari: [k('2026-11-10', 1, 3)] })
+  const h = d.hareketler.find((x) => x.tur === 'kontrol')
+  assert.deepEqual([h.puan, h.toplam, h.gereken], [-2, 1, 3])
+})
+
+test('sınav uyarıları: tarihi girilmemiş (otomatik artı varsa) ve 25 soru olmayan sınavlar adıyla', () => {
+  const sinavlar = [
+    { id: 'E1', unit_no: 1, exam_date: null, question_count: 25 },
+    { id: 'E2', unit_no: 2, exam_date: '2027-01-26', question_count: 25 },
+    { id: 'E3', unit_no: 3, exam_date: null, question_count: 20 },
+    { id: 'E4', unit_no: 4, exam_date: null, question_count: 25 }, // puan kaydı yok: uyarı yok
+    { id: 'E5', unit_no: 5, exam_date: null, question_count: 25 }, // yalnızca yazma bandı: otomatik artı yok, tarih önemsiz
+  ]
+  const puanlar = [puan('E1', 'a', 25), puan('E2', 'a', 25), puan('E3', 'a', 10), puan('E5', 'a', 5)]
+  const u = sinavUyarilari(sinavlar, puanlar)
+  assert.deepEqual(u.tarihsiz.map((x) => x.mesaj), ['1. ünite sınavının tarihi girilmemiş: otomatik artılar dönemlere ayrılamıyor'])
+  assert.equal(u.tanimsiz.length, 1)
+  assert.match(u.tanimsiz[0].mesaj, /^3\. ünite sınavı 20 soru: ödev bantları 25 soruluk sınav içindir/)
+  assert.deepEqual(sinavUyarilari(sinavlar, []), { tarihsiz: [], tanimsiz: [] })
+})

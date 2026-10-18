@@ -140,7 +140,9 @@ export function odevDurumu({ bant, sinavTarihi = null, kontrolSatirlari = [], du
   const hareketler = []
 
   if (bant.tur === 'odevsiz') hareketler.push({ tur: 'otomatik', puan: bant.otomatikArti, tarih: sinavTarihi })
-  for (const s of sonuclar) if (s.etki !== 0) hareketler.push({ tur: 'kontrol', puan: s.etki, tarih: s.tarih })
+  for (const s of sonuclar) {
+    if (s.etki !== 0) hareketler.push({ tur: 'kontrol', puan: s.etki, tarih: s.tarih, toplam: s.toplam, gereken: s.gereken })
+  }
 
   // Ekstra artı ödev başına tek sefer (ilk eklenen sayılır); elle düzeltmelerin hepsi sayılır.
   const duzeltmeler = [...(duzeltmeSatirlari ?? [])].sort((a, b) => (yeniMi(a, b) ? 1 : -1))
@@ -389,4 +391,136 @@ export function elleDuzeltmeDogrula({ puan, neden, tarih, bugun }) {
 // Elle düzeltme satırı (veritabanına yazılacak biçim)
 export function elleDuzeltmeSatiri({ studentId, kaynakExamId, puan, neden, tarih }) {
   return { student_id: studentId, kaynak_exam_id: kaynakExamId, tur: 'elle', puan, tarih, neden: String(neden).trim() }
+}
+
+// =====================================================================================================================
+// Ödev Özeti sayfası için saf yardımcılar
+// =====================================================================================================================
+
+const TUR_ADLARI = { otomatik: 'Otomatik artı', kontrol: 'Kontrol', ekstra: 'Ekstra artı', elle: 'Elle düzeltme' }
+
+// Bir hareketin döküm satırındaki açıklaması
+export function hareketAciklamasi(h) {
+  if (h.tur === 'otomatik') return 'Sınav sonucuna göre otomatik'
+  if (h.tur === 'kontrol') return `${h.gereken} gerekli, ${h.toplam} yazdı`
+  if (h.tur === 'ekstra') return h.neden ?? ''
+  return h.neden ?? ''
+}
+
+const tarihKarsilastir = (a, b) => (a === b ? 0 : a === null || a === undefined ? 1 : b === null || b === undefined ? -1 : String(a).localeCompare(String(b)))
+
+// Bir öğrencinin ünite dökümü: her hareket bir satır (ödev ünitesi, tarih, tür, puan, açıklama).
+//  odevler: [{ odevUnite, hareketler }] (odevDurumu çıktısından). donem: 'tumu' | 1 | 2.
+//  Dönem hareketin tarihine göredir; tarihsiz hareketler yalnızca 'tumu'da yer alır ve tarihsiz=true işaretlenir.
+//  İptal edilmiş kontroller odevDurumu'nda zaten yoktur. Sıra: ödev ünitesi, tarih (tarihsizler sonda).
+export function ogrenciDokumu(odevler, donem = 'tumu') {
+  const satirlar = []
+  for (const o of odevler) {
+    for (const h of o.hareketler) {
+      const d = donemBul(h.tarih)
+      if (donem !== 'tumu' && d !== donem) continue
+      satirlar.push({
+        odevUnite: o.odevUnite,
+        tur: h.tur,
+        turAdi: TUR_ADLARI[h.tur] ?? h.tur,
+        puan: h.puan,
+        tarih: h.tarih ?? null,
+        donem: d,
+        tarihsiz: d === null,
+        aciklama: hareketAciklamasi(h),
+      })
+    }
+  }
+  return satirlar.sort((a, b) => a.odevUnite - b.odevUnite || tarihKarsilastir(a.tarih, b.tarih))
+}
+
+// Bir şubenin/kademenin öğrencileri için ödev özeti. Hesap Ödev Kontrolü sayfasıyla aynı fonksiyonlarla yapılır
+// (bantHesapla + odevDurumu + ogrenciOzeti), böylece iki sayfada aynı sayılar çıkar.
+//  ogrenciler : [{ id, full_name, student_no, class_name, is_active }]
+//  sinavlar   : seçili kademenin sınavları [{ id, unit_no, exam_date, question_count }]
+//  puanlar    : [{ exam_id, student_id, status, correct_count }]
+//  kontroller : [{ student_id, kaynak_exam_id, kontrol_tarihi, toplam_yazilan, gereken, iptal, created_at, id }]
+//  duzeltmeler: [{ student_id, kaynak_exam_id, tur, puan, tarih, neden, created_at, id }]
+//  donem      : 'tumu' | 1 | 2
+// Dönen satırlar ad soyada göre Türkçe A-Z sıralıdır.
+export function ozetSatirlariniHazirla({ ogrenciler, sinavlar, puanlar, kontroller, duzeltmeler, donem = 'tumu' }) {
+  const anahtar = (sinavId, ogrenciId) => `${sinavId}|${ogrenciId}`
+  const puanHaritasi = new Map(puanlar.map((p) => [anahtar(p.exam_id, p.student_id), p]))
+  const grupla = (satirlar) => {
+    const harita = new Map()
+    for (const s of satirlar) {
+      const a = anahtar(s.kaynak_exam_id, s.student_id)
+      if (!harita.has(a)) harita.set(a, [])
+      harita.get(a).push(s)
+    }
+    return harita
+  }
+  const kontrolHaritasi = grupla(kontroller)
+  const duzeltmeHaritasi = grupla(duzeltmeler)
+  const siraliSinavlar = [...sinavlar].sort((a, b) => a.unit_no - b.unit_no)
+
+  const satirlar = ogrenciler.map((o) => {
+    const odevler = siraliSinavlar.map((s) => {
+      const a = anahtar(s.id, o.id)
+      const bant = bantHesapla(puanHaritasi.get(a), s.question_count)
+      const d = odevDurumu({
+        bant,
+        sinavTarihi: s.exam_date ?? null,
+        kontrolSatirlari: kontrolHaritasi.get(a) ?? [],
+        duzeltmeSatirlari: duzeltmeHaritasi.get(a) ?? [],
+      })
+      return { odevUnite: s.unit_no + 1, hareketler: d.hareketler, bantDegisti: d.bantDegisti }
+    })
+    const ozet = ogrenciOzeti(odevler, donem)
+    return {
+      ogrenciId: o.id,
+      full_name: o.full_name,
+      student_no: o.student_no,
+      sube: o.class_name ?? null,
+      aktif: o.is_active !== false,
+      arti: ozet.arti,
+      eksi: ozet.eksi,
+      net: ozet.net,
+      tarihsiz: ozet.tarihsiz,
+      unite: ozet.unite,
+      dokum: ogrenciDokumu(odevler, donem),
+      bantDegisti: odevler.some((x) => x.bantDegisti),
+    }
+  })
+  return adaGoreSirala(satirlar)
+}
+
+// Liste sırası: 'ad' (Türkçe A-Z, varsayılan), 'net-azalan', 'net-artan'. Net eşitse ad soyada göre.
+export function ozetSirala(satirlar, olcut = 'ad') {
+  const adSirali = adaGoreSirala(satirlar)
+  if (olcut === 'net-azalan') return [...adSirali].sort((a, b) => b.net - a.net)
+  if (olcut === 'net-artan') return [...adSirali].sort((a, b) => a.net - b.net)
+  return adSirali
+}
+
+// Listedeki öğrencilerin toplamı (sayfanın altındaki satır)
+export function ozetToplami(satirlar) {
+  return satirlar.reduce(
+    (t, s) => ({ ogrenci: t.ogrenci + 1, arti: t.arti + s.arti, eksi: t.eksi + s.eksi, net: t.net + s.net, tarihsiz: t.tarihsiz + s.tarihsiz }),
+    { ogrenci: 0, arti: 0, eksi: 0, net: 0, tarihsiz: 0 }
+  )
+}
+
+// Sayfada adıyla gösterilecek sınav uyarıları. Yalnızca puan kaydı olan sınavlar için:
+//  tarihsiz : sınavın tarihi girilmemiş VE o sınavdan otomatik artı alan en az bir öğrenci var
+//             (otomatik artı dönemi sınav tarihinden belirlenir)
+//  tanimsiz : sınav 25 soru değil, bant hesaplanmıyor
+export function sinavUyarilari(sinavlar, puanlar) {
+  const puanli = [...sinavlar].filter((s) => puanlar.some((p) => p.exam_id === s.id)).sort((a, b) => a.unit_no - b.unit_no)
+  const tanimsiz = puanli
+    .filter((s) => s.question_count !== ODEV_SORU_SAYISI)
+    .map((s) => ({
+      unite: s.unit_no,
+      mesaj: `${s.unit_no}. ünite sınavı ${s.question_count} soru: ödev bantları ${ODEV_SORU_SAYISI} soruluk sınav içindir, bu sınav için bant hesaplanmıyor`,
+    }))
+  const tarihsiz = puanli
+    .filter((s) => !tarihGecerliMi(s.exam_date))
+    .filter((s) => puanlar.some((p) => p.exam_id === s.id && bantHesapla(p, s.question_count).tur === 'odevsiz'))
+    .map((s) => ({ unite: s.unit_no, mesaj: `${s.unit_no}. ünite sınavının tarihi girilmemiş: otomatik artılar dönemlere ayrılamıyor` }))
+  return { tarihsiz, tanimsiz }
 }
