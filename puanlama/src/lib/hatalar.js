@@ -17,11 +17,15 @@ export function sunucuMesajiniCevir(mesaj) {
     )
   }
   if (m.includes('yönetici yetkisi gerekir')) return 'Bu işlem için yönetici yetkisi gerekir.'
+  // Ödev tablolarının tetikleyicisi (ASCII Türkçe mesajlar)
+  if (m.includes('bugunden ileri olamaz')) return 'Tarih bugünden ileri olamaz.'
+  if (m.includes('kademesi') && m.includes('uyusmuyor')) return 'Öğrencinin kademesi sınavın kademesiyle uyuşmuyor.'
+  if (m.includes('Oturum bulunamadi')) return 'Oturum bulunamadı. Sayfayı yenileyip yeniden giriş yap.'
   return m
 }
 
 // Veritabanı hatalarını anlaşılır Türkçe mesaja çevirir.
-// baglam: { tur: 'sinav' | 'sezon' | 'ogrenci', grade, unit, no } - mesajı kişiselleştirmek için.
+// baglam: { tur: 'sinav' | 'sezon' | 'ogrenci' | 'odev-ekstra', grade, unit, no } - mesajı kişiselleştirmek için.
 export function hataMetni(error, baglam = {}) {
   if (!error) return ''
   console.error('Veritabanı hatası:', error)
@@ -31,6 +35,7 @@ export function hataMetni(error, baglam = {}) {
         return `${baglam.grade}. kademe için ${baglam.unit}. ünite bu sezonda zaten tanımlı.`
       }
       if (baglam.tur === 'sezon') return 'Bu adda başka bir sezon zaten var.'
+      if (baglam.tur === 'odev-ekstra') return 'Bu ödev için ekstra artı zaten kaydedilmiş.'
       if (baglam.tur === 'ogrenci') {
         return `Bu öğrenci numarası zaten kayıtlı${baglam.no ? ` (${baglam.no})` : ''}.`
       }
@@ -48,3 +53,11 @@ export function hataMetni(error, baglam = {}) {
       return 'Beklenmeyen bir hata oluştu. Bağlantınızı kontrol edip tekrar deneyin.'
   }
 }
+
+// Ödev tabloları veritabanında henüz yok mu? (SQL çalıştırılmadıysa PostgREST/Postgres "tablo bulunamadı" der.)
+export function odevTablosuYokMu(error) {
+  return Boolean(error) && (error.code === 'PGRST205' || error.code === '42P01')
+}
+
+export const ODEV_TABLOSU_YOK_MESAJI =
+  'Ödev tabloları veritabanında henüz kurulmamış. puanlama/sql/kurulum/07_odev_tablolari.sql dosyası Supabase SQL editöründe çalıştırıldıktan sonra sayfa çalışacaktır.'

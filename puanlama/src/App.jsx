@@ -10,6 +10,7 @@ import ScoreEntry from './pages/ScoreEntry'
 import ChangePassword from './pages/ChangePassword'
 import Ranking from './pages/Ranking'
 import UnitResults from './pages/UnitResults'
+import OdevKontrolu from './pages/OdevKontrolu'
 
 // Tüm sayfaları saran kök: oturum bilgisi her sayfada kullanılabilir.
 function Kok() {
@@ -66,6 +67,16 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <UnitResults />
+          </ProtectedRoute>
+        ),
+      },
+      // Ödev Kontrolü: yönetici de öğretmen de kullanır. Okuma ve yazma, puan kaydıyla aynı erişim kurallarına (RLS)
+      // bağlıdır: öğretmen yalnızca yetkili şubelerinin öğrencileri için yazabilir.
+      {
+        path: '/odev-kontrolu',
+        element: (
+          <ProtectedRoute>
+            <OdevKontrolu />
           </ProtectedRoute>
         ),
       },

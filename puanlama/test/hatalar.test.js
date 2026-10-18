@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hataMetni, sunucuMesajiniCevir } from '../src/lib/hatalar.js'
+import { hataMetni, sunucuMesajiniCevir, odevTablosuYokMu, ODEV_TABLOSU_YOK_MESAJI } from '../src/lib/hatalar.js'
 
 // hataMetni hata ayıklama için console.error yazar; test çıktısını kirletmesin
 const orijinalHata = console.error
@@ -66,4 +66,28 @@ test('hataMetni: tetikleyici hatası (P0001) anlaşılır Türkçeye çevrilir; 
     assert.match(hataMetni({ code: 'XX000' }), /Beklenmeyen bir hata/)
     assert.equal(hataMetni(null), '')
   })
+})
+
+// --- Ödev Kontrolü hata mesajları ---
+
+test('ödev: tetikleyici mesajları anlaşılır Türkçeye çevrilir', () => {
+  assert.equal(sunucuMesajiniCevir('Kontrol tarihi bugunden ileri olamaz (Istanbul tarihi: 2026-11-10).'), 'Tarih bugünden ileri olamaz.')
+  assert.equal(sunucuMesajiniCevir('Duzeltme tarihi bugunden ileri olamaz (Istanbul tarihi: 2026-11-10).'), 'Tarih bugünden ileri olamaz.')
+  assert.match(sunucuMesajiniCevir('Ogrencinin kademesi (8) kaynak sinavin kademesiyle (7) uyusmuyor.'), /kademesi sınavın kademesiyle uyuşmuyor/)
+  assert.match(sunucuMesajiniCevir('Oturum bulunamadi: odev kaydi yalnizca giris yapmis kullanici tarafindan eklenebilir.'), /Oturum bulunamadı/)
+})
+
+test('ödev: ekstra artı tekrarı (23505) ve yetkisiz yazma (42501) anlaşılır mesaj verir', () => {
+  assert.equal(sessiz(() => hataMetni({ code: '23505' }, { tur: 'odev-ekstra' })), 'Bu ödev için ekstra artı zaten kaydedilmiş.')
+  assert.equal(sessiz(() => hataMetni({ code: '23505' })), 'Bu kayıt zaten var.')
+  assert.equal(sessiz(() => hataMetni({ code: '42501' })), 'Bu işlem için yetkiniz yok.')
+  assert.match(sessiz(() => hataMetni({ code: 'P0001', message: 'Kontrol tarihi bugunden ileri olamaz (Istanbul tarihi: 2026-11-10).' })), /bugünden ileri olamaz/)
+})
+
+test('ödev: tablo henüz kurulmamışsa tanınır, diğer hatalar tanınmaz', () => {
+  assert.equal(odevTablosuYokMu({ code: 'PGRST205' }), true)
+  assert.equal(odevTablosuYokMu({ code: '42P01' }), true)
+  assert.equal(odevTablosuYokMu({ code: '42501' }), false)
+  assert.equal(odevTablosuYokMu(null), false)
+  assert.match(ODEV_TABLOSU_YOK_MESAJI, /07_odev_tablolari/)
 })
