@@ -11,6 +11,7 @@ import ChangePassword from './pages/ChangePassword'
 import Ranking from './pages/Ranking'
 import UnitResults from './pages/UnitResults'
 import OdevKontrolu from './pages/OdevKontrolu'
+import OdevOzeti from './pages/OdevOzeti'
 
 // Tüm sayfaları saran kök: oturum bilgisi her sayfada kullanılabilir.
 function Kok() {
@@ -77,6 +78,16 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <OdevKontrolu />
+          </ProtectedRoute>
+        ),
+      },
+      // Ödev Özeti: yönetici de öğretmen de görür (salt okunur). Veriler erişim kurallarıyla (RLS) süzülür:
+      // öğretmen yalnızca yetkili şubelerinin öğrencilerini ve kayıtlarını görür.
+      {
+        path: '/odev-ozeti',
+        element: (
+          <ProtectedRoute>
+            <OdevOzeti />
           </ProtectedRoute>
         ),
       },

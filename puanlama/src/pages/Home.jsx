@@ -9,6 +9,7 @@ const MENU = [
   { ad: 'Sıralama', roller: ['admin', 'teacher'], yol: '/siralama' },
   { ad: 'Ünite Sonuçları', roller: ['admin', 'teacher'], yol: '/unite-sonuclari' },
   { ad: 'Ödev Kontrolü', roller: ['admin', 'teacher'], yol: '/odev-kontrolu' },
+  { ad: 'Ödev Özeti', roller: ['admin', 'teacher'], yol: '/odev-ozeti' },
   { ad: 'Sezon ve Sınavlar', roller: ['admin'], yol: '/sezon-sinavlar' },
   { ad: 'Öğrenciler', roller: ['admin'], yol: '/ogrenciler' },
 ]
