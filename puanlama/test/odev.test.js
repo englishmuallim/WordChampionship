@@ -12,6 +12,20 @@ import {
   odevDurumu,
   odevSatirlariniSirala,
   ogrenciOzeti,
+  istanbulBugunu,
+  hizliDugmeler,
+  yapildiMi,
+  secimDegistir,
+  satirDegisti,
+  satirAlanlari,
+  gorunenSatirlar,
+  kontrolOnizleme,
+  kaydedilecekKontroller,
+  ekstraVarMi,
+  kaydedilecekEkstralar,
+  iptalSatiri,
+  elleDuzeltmeDogrula,
+  elleDuzeltmeSatiri,
 } from '../src/lib/odev.js'
 
 const girdi = (n) => ({ status: 'girdi', correct_count: n })
@@ -312,4 +326,235 @@ test('özet: ocak/şubat sınırı kontrol tarihine göre', () => {
   const ozet = ogrenciOzeti([{ odevUnite: 3, hareketler: d.hareketler }], 1)
   assert.equal(ozet.eksi, 1) // yalnızca 31 Ocak
   assert.equal(ogrenciOzeti([{ odevUnite: 3, hareketler: d.hareketler }], 2).eksi, 1) // yalnızca 1 Şubat
+})
+
+// ======================== Sayfa yardımcıları (Aşama 3a) ========================
+
+test('İstanbul günü: UTC 21:00 ve sonrası ertesi gündür (gün sınırı)', () => {
+  assert.equal(istanbulBugunu(new Date('2026-11-10T20:59:59Z')), '2026-11-10')
+  assert.equal(istanbulBugunu(new Date('2026-11-10T21:00:00Z')), '2026-11-11')
+  assert.equal(istanbulBugunu(new Date('2026-11-10T23:30:00Z')), '2026-11-11')
+  assert.equal(istanbulBugunu(new Date('2026-11-11T00:00:00Z')), '2026-11-11')
+})
+
+test('İstanbul günü: ay ve yıl sınırları; sayı/metin girdisi; geçersiz girdi null', () => {
+  assert.equal(istanbulBugunu(new Date('2026-12-31T21:30:00Z')), '2027-01-01')
+  assert.equal(istanbulBugunu(new Date('2026-03-31T21:00:00Z')), '2026-04-01')
+  assert.equal(istanbulBugunu(new Date('2028-02-28T21:00:00Z')), '2028-02-29') // artık yıl
+  assert.equal(istanbulBugunu(Date.UTC(2026, 10, 10, 21, 0)), '2026-11-11')
+  assert.equal(istanbulBugunu('2026-11-10T21:00:00Z'), '2026-11-11')
+  assert.equal(istanbulBugunu('geçersiz'), null)
+})
+
+test('İstanbul günü: ileri tarih denetimiyle birlikte (UTC 22:00 = İstanbul ertesi gün, o gün seçilebilir)', () => {
+  const bugun = istanbulBugunu(new Date('2026-11-10T22:00:00Z')) // 11 Kasım 01:00 İstanbul
+  assert.equal(bugun, '2026-11-11')
+  assert.equal(kontrolTarihiDogrula('2026-11-11', bugun).gecerli, true)
+  assert.equal(kontrolTarihiDogrula('2026-11-12', bugun).gecerli, false)
+})
+
+test('hızlı düğmeler: 0\'dan gerekene kadar', () => {
+  assert.deepEqual(hizliDugmeler(1), [0, 1])
+  assert.deepEqual(hizliDugmeler(3), [0, 1, 2, 3])
+  assert.deepEqual(hizliDugmeler(5), [0, 1, 2, 3, 4, 5])
+  assert.deepEqual(hizliDugmeler(0), [])
+  assert.deepEqual(hizliDugmeler(null), [])
+  assert.deepEqual(hizliDugmeler(undefined), [])
+})
+
+test('yapıldı/yapılmadı: gerekene ulaştı mı; seçim yoksa null', () => {
+  assert.equal(yapildiMi(3, 3), true)
+  assert.equal(yapildiMi(4, 3), true)
+  assert.equal(yapildiMi(2, 3), false)
+  assert.equal(yapildiMi(0, 1), false)
+  assert.equal(yapildiMi(undefined, 3), null)
+})
+
+test('seçim değiştirme: yeni seçim, bekleyen seçimi geri alma, kayıtlı değer geri alınamaz', () => {
+  assert.equal(secimDegistir(undefined, 2, undefined), 2) // ilk tıklama
+  assert.equal(secimDegistir(2, 3, undefined), 3) // başka düğme
+  assert.equal(secimDegistir(2, 2, undefined), undefined) // bekleyen seçime yeniden basmak: geri al
+  assert.equal(secimDegistir(3, 3, 2), 2) // bekleyen (kayıtlı 2'den farklı) seçim: kayıtlı değere dön
+  assert.equal(secimDegistir(2, 2, 2), 2) // kayıtlı değere basmak bir şey değiştirmez
+  assert.equal(secimDegistir(1, 2, 2), 2) // kayıtlıya geri dönmek serbest
+})
+
+test('satır değişti mi: yeni ya da farklı seçim, bekleyen ekstra', () => {
+  assert.equal(satirDegisti(undefined, undefined, false), false)
+  assert.equal(satirDegisti(2, undefined, false), true)
+  assert.equal(satirDegisti(2, 2, false), false)
+  assert.equal(satirDegisti(3, 2, false), true)
+  assert.equal(satirDegisti(undefined, 2, false), false) // kayıtlı olan, kaydedilecek bir şey değil
+  assert.equal(satirDegisti(undefined, undefined, true), true)
+  assert.equal(satirDegisti(2, 2, true), true)
+})
+
+test('satır alanları: sınıf modu yalnızca ad, düğmeler ve yapıldı/yapılmadı; gizlenenler', () => {
+  const sinif = satirAlanlari('acik', true)
+  assert.deepEqual([sinif.dugmeler, sinif.yapildiRozeti, sinif.gereken, sinif.oncekiToplam, sinif.hesap, sinif.bantDegistiRozeti], [true, true, false, false, false, false])
+  const ogretmen = satirAlanlari('acik', false)
+  assert.deepEqual([ogretmen.dugmeler, ogretmen.yapildiRozeti, ogretmen.gereken, ogretmen.oncekiToplam, ogretmen.hesap, ogretmen.bantDegistiRozeti], [true, false, true, true, true, true])
+  assert.equal(satirAlanlari('tamamlandi', true).dugmeler, true)
+})
+
+test('satır alanları: "Ödev yok" iki modda da görünür; "Sonuç bekleniyor" ve tanımsız yalnızca öğretmen modunda', () => {
+  assert.equal(satirAlanlari('odevsiz', true).etiket, 'Ödev yok')
+  assert.equal(satirAlanlari('odevsiz', false).etiket, 'Ödev yok')
+  assert.equal(satirAlanlari('belirsiz', true).etiket, null)
+  assert.equal(satirAlanlari('belirsiz', false).etiket, 'Sonuç bekleniyor')
+  assert.equal(satirAlanlari('tanimsiz', true).etiket, null)
+  assert.match(satirAlanlari('tanimsiz', false).etiket, /tanımsız/)
+  // düğme yalnızca yazma bandında; ekstra yalnızca ödevsizde (iki modda da)
+  for (const mod of [true, false]) {
+    assert.equal(satirAlanlari('odevsiz', mod).dugmeler, false)
+    assert.equal(satirAlanlari('odevsiz', mod).ekstra, true)
+    assert.equal(satirAlanlari('belirsiz', mod).dugmeler, false)
+    assert.equal(satirAlanlari('acik', mod).ekstra, false)
+  }
+})
+
+test('tamamlananları gizle', () => {
+  const l = [{ durum: 'acik' }, { durum: 'tamamlandi' }, { durum: 'odevsiz' }]
+  assert.equal(gorunenSatirlar(l, false).length, 3)
+  assert.deepEqual(gorunenSatirlar(l, true).map((s) => s.durum), ['acik', 'odevsiz'])
+})
+
+test('önizleme: ilk kontrol, kalan 0 → +1; kalan > 0 → -kalan; sonraki kontrol, kalan 0 → tamamlandı', () => {
+  const bant = yazma(2)
+  assert.equal(kontrolOnizleme({ bant, tarih: '2026-11-10', secim: 2 }).etiket, '+1')
+  assert.equal(kontrolOnizleme({ bant, tarih: '2026-11-10', secim: 0 }).etiket, '-2')
+  assert.equal(kontrolOnizleme({ bant, tarih: '2026-11-10', secim: 1 }).etiket, '-1')
+  const onceki = [k('2026-11-10', 0, 2)]
+  assert.equal(kontrolOnizleme({ bant, kontrolSatirlari: onceki, tarih: '2026-11-17', secim: 1 }).etiket, '-1')
+  assert.equal(kontrolOnizleme({ bant, kontrolSatirlari: onceki, tarih: '2026-11-17', secim: 2 }).etiket, 'tamamlandı')
+})
+
+test('önizleme: seçim yok, ödevsiz ve belirsiz bantta önizleme yok; aynı tarihteki kayıtlı satırın yerine geçer', () => {
+  assert.equal(kontrolOnizleme({ bant: yazma(2), tarih: '2026-11-10', secim: undefined }).etiket, null)
+  assert.equal(kontrolOnizleme({ bant: { tur: 'odevsiz', otomatikArti: 1 }, tarih: '2026-11-10', secim: 1 }).etiket, null)
+  assert.equal(kontrolOnizleme({ bant: { tur: 'belirsiz' }, tarih: '2026-11-10', secim: 1 }).etiket, null)
+  // kayıtlı 0 (−2) iken aynı tarihte 2 seçilirse önizleme +1 (kayıtlı satır geçici satırla değişmiş sayılır)
+  const kayitli = [k('2026-11-10', 0, 2)]
+  const o = kontrolOnizleme({ bant: yazma(2), kontrolSatirlari: kayitli, tarih: '2026-11-10', secim: 2 })
+  assert.equal(o.etiket, '+1')
+})
+
+test('önizleme: geriye dönük tarih, ilk kontrolü kaydırır', () => {
+  // 17'si kayıtlı (kalan 0, ilk kontrol → +1). 10'u için seçim 1 yapılırsa 10 ilk kontrol olur (-1), 17 artık "tamamlandı"
+  const kayitli = [k('2026-11-17', 2, 2)]
+  const o = kontrolOnizleme({ bant: yazma(2), kontrolSatirlari: kayitli, tarih: '2026-11-10', secim: 1 })
+  assert.equal(o.etiket, '-1')
+})
+
+test('önizleme gerçek kayıtları değiştirmez', () => {
+  const kayitli = [k('2026-11-10', 0, 2)]
+  const kopya = JSON.parse(JSON.stringify(kayitli))
+  kontrolOnizleme({ bant: yazma(2), kontrolSatirlari: kayitli, tarih: '2026-11-17', secim: 1 })
+  assert.deepEqual(kayitli, kopya)
+})
+
+const ogr = (id, bant, kontrolSatirlari = [], duzeltmeSatirlari = []) => ({ student_id: id, bant, kontrolSatirlari, duzeltmeSatirlari })
+
+test('kaydedilecek kontroller: yeni seçim yazılır, gereken güncel banttan; kayıtlıyla aynı olan yazılmaz', () => {
+  const r = kaydedilecekKontroller({
+    ogrenciler: [
+      ogr('a', yazma(3)), // seçim 1 → yazılır
+      ogr('b', yazma(2), [k('2026-11-10', 1, 2)]), // kayıtlı 1, seçim 1 → yazılmaz
+      ogr('c', yazma(2), [k('2026-11-10', 1, 2)]), // kayıtlı 1, seçim 2 → yazılır (düzeltme)
+      ogr('d', yazma(2)), // seçim yok → yazılmaz
+    ],
+    secimler: { a: 1, b: 1, c: 2 },
+    tarih: '2026-11-10',
+    kaynakExamId: 'E1',
+  })
+  assert.deepEqual(r.yazilacak, [
+    { student_id: 'a', kaynak_exam_id: 'E1', kontrol_tarihi: '2026-11-10', toplam_yazilan: 1, gereken: 3, iptal: false },
+    { student_id: 'c', kaynak_exam_id: 'E1', kontrol_tarihi: '2026-11-10', toplam_yazilan: 2, gereken: 2, iptal: false },
+  ])
+  assert.equal(r.gecersiz, 0)
+})
+
+test('kaydedilecek kontroller: yazma bandında olmayanlar yazılmaz; geçersiz toplam yazılmaz ve sayılır', () => {
+  const r = kaydedilecekKontroller({
+    ogrenciler: [ogr('a', { tur: 'odevsiz', otomatikArti: 2 }), ogr('b', { tur: 'belirsiz' }), ogr('c', { tur: 'tanimsiz', neden: 'soru-sayisi' }), ogr('d', yazma(2))],
+    secimler: { a: 1, b: 1, c: 1, d: 99 },
+    tarih: '2026-11-10',
+    kaynakExamId: 'E1',
+  })
+  assert.deepEqual(r.yazilacak, [])
+  assert.equal(r.gecersiz, 1)
+})
+
+test('kaydedilecek kontroller: iptal edilmiş eski kayıt yoksa sayılır, yeni seçim yazılır; bant yazma ama seçim 0 da yazılır', () => {
+  const iptalliKayit = [k('2026-11-10', 1, 2, { created_at: '2026-11-10T08:00:00Z' }), k('2026-11-10', 1, 2, { iptal: true, created_at: '2026-11-10T09:00:00Z' })]
+  const r = kaydedilecekKontroller({
+    ogrenciler: [ogr('a', yazma(2), iptalliKayit), ogr('b', yazma(2))],
+    secimler: { a: 1, b: 0 },
+    tarih: '2026-11-10',
+    kaynakExamId: 'E1',
+  })
+  assert.deepEqual(r.yazilacak.map((y) => [y.student_id, y.toplam_yazilan]), [['a', 1], ['b', 0]])
+})
+
+test('kaydedilecek ekstralar: yalnızca ödevsiz bantta, tek sefer; tarih = kontrol tarihi', () => {
+  const odevsiz = { tur: 'odevsiz', otomatikArti: 1 }
+  const r = kaydedilecekEkstralar({
+    ogrenciler: [
+      ogr('a', odevsiz),
+      ogr('b', odevsiz, [], [duz('ekstra_arti', 1, '2026-11-03')]), // zaten yapılmış
+      ogr('c', yazma(2)), // yazma bandı: ekstra yok
+      ogr('d', { tur: 'belirsiz' }),
+      ogr('e', odevsiz), // işaretlenmemiş
+    ],
+    ekstraSecimleri: { a: true, b: true, c: true, d: true, e: false },
+    tarih: '2026-11-10',
+    kaynakExamId: 'E1',
+  })
+  assert.deepEqual(r, [{ student_id: 'a', kaynak_exam_id: 'E1', tur: 'ekstra_arti', puan: 1, tarih: '2026-11-10', neden: null }])
+  assert.equal(ekstraVarMi([duz('elle', 1, '2026-11-03')]), false)
+  assert.equal(ekstraVarMi([duz('ekstra_arti', 1, '2026-11-03')]), true)
+  assert.equal(ekstraVarMi(undefined), false)
+})
+
+test('iptal satırı: tarihteki geçerli kaydın değerleriyle iptal=true; kayıt yoksa null', () => {
+  const kayit = [k('2026-11-10', 1, 2), k('2026-11-17', 2, 2)]
+  assert.deepEqual(iptalSatiri({ studentId: 's1', kaynakExamId: 'E1', kontrolSatirlari: kayit, tarih: '2026-11-10' }), {
+    student_id: 's1',
+    kaynak_exam_id: 'E1',
+    kontrol_tarihi: '2026-11-10',
+    toplam_yazilan: 1,
+    gereken: 2,
+    iptal: true,
+  })
+  assert.equal(iptalSatiri({ studentId: 's1', kaynakExamId: 'E1', kontrolSatirlari: kayit, tarih: '2026-11-24' }), null)
+  // zaten iptal edilmiş tarih için tekrar iptal satırı üretilmez
+  const iptalli = [k('2026-11-10', 1, 2, { created_at: '2026-11-10T08:00:00Z' }), k('2026-11-10', 1, 2, { iptal: true, created_at: '2026-11-10T09:00:00Z' })]
+  assert.equal(iptalSatiri({ studentId: 's1', kaynakExamId: 'E1', kontrolSatirlari: iptalli, tarih: '2026-11-10' }), null)
+})
+
+test('elle düzeltme doğrulaması: puan sıfırdan farklı tam sayı, neden zorunlu, tarih geçerli ve ileri değil', () => {
+  const bugun = '2026-11-10'
+  assert.equal(elleDuzeltmeDogrula({ puan: 2, neden: 'Puan düzeltildi', tarih: bugun, bugun }).gecerli, true)
+  assert.equal(elleDuzeltmeDogrula({ puan: -1, neden: 'Defter yok', tarih: '2026-11-01', bugun }).gecerli, true)
+  assert.equal(elleDuzeltmeDogrula({ puan: 0, neden: 'x', tarih: bugun, bugun }).gecerli, false)
+  assert.equal(elleDuzeltmeDogrula({ puan: 1.5, neden: 'x', tarih: bugun, bugun }).gecerli, false)
+  assert.equal(elleDuzeltmeDogrula({ puan: 1, neden: '', tarih: bugun, bugun }).gecerli, false)
+  assert.equal(elleDuzeltmeDogrula({ puan: 1, neden: '   ', tarih: bugun, bugun }).gecerli, false)
+  assert.equal(elleDuzeltmeDogrula({ puan: 1, neden: undefined, tarih: bugun, bugun }).gecerli, false)
+  assert.equal(elleDuzeltmeDogrula({ puan: 1, neden: 'x', tarih: '2026-11-11', bugun }).gecerli, false)
+  assert.equal(elleDuzeltmeDogrula({ puan: 1, neden: 'x', tarih: '', bugun }).gecerli, false)
+  const buyuk = elleDuzeltmeDogrula({ puan: 11, neden: 'x', tarih: bugun, bugun })
+  assert.equal(buyuk.gecerli, true)
+  assert.match(buyuk.uyari, /Emin misin/)
+})
+
+test('elle düzeltme satırı: neden kırpılır, tür elle', () => {
+  assert.deepEqual(elleDuzeltmeSatiri({ studentId: 's1', kaynakExamId: 'E1', puan: -2, neden: '  Geri alındı  ', tarih: '2026-11-10' }), {
+    student_id: 's1',
+    kaynak_exam_id: 'E1',
+    tur: 'elle',
+    puan: -2,
+    tarih: '2026-11-10',
+    neden: 'Geri alındı',
+  })
 })

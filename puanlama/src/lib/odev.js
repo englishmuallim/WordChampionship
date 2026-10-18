@@ -225,3 +225,168 @@ export function ogrenciOzeti(odevler, donem = 'tumu') {
   unite.sort((x, y) => x.odevUnite - y.odevUnite)
   return { arti, eksi, net: arti - eksi, unite, tarihsiz }
 }
+
+// =====================================================================================================================
+// Ödev Kontrolü sayfası için saf yardımcılar (arayüz bunları çağırır; veritabanı/React yok)
+// =====================================================================================================================
+
+// Bugünün tarihi, İSTANBUL gününe göre ('YYYY-MM-DD'). Veritabanı da ileri tarih denetimini İstanbul gününe göre yapar;
+// tarayıcının kendi saat dilimi (ör. UTC) 21:00-24:00 arasında bir gün geride kalacağından kullanılmaz.
+export function istanbulBugunu(simdi) {
+  const d = simdi instanceof Date ? simdi : new Date(simdi)
+  if (Number.isNaN(d.getTime())) return null
+  const parcalar = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(d)
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, p.value])
+  )
+  return `${parcalar.year}-${parcalar.month}-${parcalar.day}`
+}
+
+// Hızlı düğmeler: 0'dan gereken sayıya kadar (gereken 3 ise [0, 1, 2, 3]). Gereken yoksa düğme yok.
+export function hizliDugmeler(gereken) {
+  if (!Number.isInteger(gereken) || gereken < 1) return []
+  return Array.from({ length: gereken + 1 }, (_, i) => i)
+}
+
+// Sınıf modunda "yapıldı / yapılmadı": bu hafta toplam gerekene ulaştı mı? Seçim yoksa null (henüz işaretlenmedi).
+export function yapildiMi(toplam, gereken) {
+  if (!Number.isInteger(toplam) || !Number.isInteger(gereken)) return null
+  return toplam >= gereken
+}
+
+// Bir düğmeye basılınca seçim nasıl değişir.
+//  mevcut   : şu anki seçim (sayı ya da undefined)
+//  tiklanan : basılan düğmenin değeri
+//  kayitli  : o tarihte veritabanında kayıtlı toplam (sayı ya da undefined)
+// Kayıtlı bir değer kaydetmeden geri alınamaz (silme yok): kayıtlı değerin üzerine yeniden basmak bir şey değiştirmez.
+// Henüz kaydedilmemiş bir seçime yeniden basmak seçimi geri alır (kayıtlı değere ya da boşa döner).
+export function secimDegistir(mevcut, tiklanan, kayitli) {
+  if (tiklanan === mevcut) return mevcut === kayitli ? mevcut : kayitli
+  return tiklanan
+}
+
+// Satırın kaydedilmesi gereken bir değişikliği var mı? (seçim yeni ya da kayıtlıdan farklı, ya da bekleyen ekstra artı)
+export function satirDegisti(secim, kayitli, ekstraSecimi = false) {
+  const kontrolDegisti = Number.isInteger(secim) && secim !== kayitli
+  return kontrolDegisti || Boolean(ekstraSecimi)
+}
+
+// Satırda hangi alanlar görünür. durum: odevDurumu().durum.
+//  Sınıf modu (tahtada herkes görür): yalnızca ad, hızlı düğmeler ve yapıldı/yapılmadı; artı/eksi sonuçları,
+//  gereken ve önceki toplam gizlenir. "Ödev yok" görünür, "sonuç bekleniyor" ve bant uyarıları gizlenir.
+//  Hızlı düğmeler ve ekstra artı düğmesi her iki modda da görünür (düğmeler yalnızca yazma bandında vardır).
+export function satirAlanlari(durum, sinifModu) {
+  const yazma = durum === 'acik' || durum === 'tamamlandi'
+  let etiket = null
+  if (durum === 'odevsiz') etiket = 'Ödev yok'
+  else if (durum === 'belirsiz' && !sinifModu) etiket = 'Sonuç bekleniyor'
+  else if (durum === 'tanimsiz' && !sinifModu) etiket = 'Bant tanımsız (sınav 25 soru değil)'
+  return {
+    dugmeler: yazma,
+    ekstra: durum === 'odevsiz',
+    yapildiRozeti: sinifModu && yazma,
+    gereken: !sinifModu && yazma,
+    oncekiToplam: !sinifModu && yazma,
+    hesap: !sinifModu,
+    bantDegistiRozeti: !sinifModu,
+    etiket,
+  }
+}
+
+// "Tamamlananları gizle" kutusu: işaretliyse tamamlanan ödevler listeden çıkar.
+export function gorunenSatirlar(satirlar, tamamlananlariGizle) {
+  return tamamlananlariGizle ? satirlar.filter((s) => s.durum !== 'tamamlandi') : satirlar
+}
+
+// Kaydetmeden önizleme: seçilen toplamı, seçilen tarihte geçici bir kontrol gibi ekleyip sistemin hesabını verir.
+// Geçici satır, aynı tarihteki kayıtlı satırın yerine geçer (en son satır geçerli kuralı). Yazma bandı dışında ya da
+// seçim yoksa önizleme yoktur (etki null).
+//  Dönen: { durum, etki (bu tarihteki kontrolün artı/eksisi ya da null), etiket: '+1' | '-2' | 'tamamlandı' | null, bantDegisti }
+export function kontrolOnizleme({ bant, sinavTarihi = null, kontrolSatirlari = [], duzeltmeSatirlari = [], tarih, secim }) {
+  const secimVar = bant.tur === 'yazma' && Number.isInteger(secim)
+  const gecici = secimVar
+    ? [{ id: 'onizleme', kontrol_tarihi: tarih, toplam_yazilan: secim, gereken: bant.gereken, iptal: false, created_at: '￿' }]
+    : []
+  const d = odevDurumu({ bant, sinavTarihi, kontrolSatirlari: [...kontrolSatirlari, ...gecici], duzeltmeSatirlari })
+  let etki = null
+  if (secimVar) {
+    const bu = d.kontrolSonuclari.find((s) => s.tarih === tarih)
+    etki = bu ? bu.etki : null
+  }
+  const etiket = etki === null ? null : etki > 0 ? `+${etki}` : etki < 0 ? `${etki}` : 'tamamlandı'
+  return { durum: d.durum, etki, etiket, bantDegisti: d.bantDegisti, kalan: d.kalan }
+}
+
+// Kaydedilecek kontrol satırları: yazma bandındaki öğrencilerden, seçilen toplamı o tarihteki geçerli kayıttan farklı
+// (ya da o tarihte kayıt yok) olanlar. `gereken` KAYIT ANINDAKİ güncel banttan alınır (sonradan değişse de bu satırda kalır).
+//  ogrenciler: [{ student_id, bant, kontrolSatirlari }]   secimler: { [student_id]: sayı | undefined }
+//  Dönen: { yazilacak: [...], gecersiz: sayı }  (geçersiz toplam yazılmaz)
+export function kaydedilecekKontroller({ ogrenciler, secimler, tarih, kaynakExamId }) {
+  const yazilacak = []
+  let gecersiz = 0
+  for (const o of ogrenciler) {
+    const secim = secimler[o.student_id]
+    if (o.bant.tur !== 'yazma' || secim === undefined || secim === null) continue
+    if (!toplamDogrula(secim, 0).gecerli) {
+      gecersiz++
+      continue
+    }
+    const kayitli = gecerliKontroller(o.kontrolSatirlari).find((k) => k.kontrol_tarihi === tarih)
+    if (kayitli && kayitli.toplam_yazilan === secim) continue
+    yazilacak.push({
+      student_id: o.student_id,
+      kaynak_exam_id: kaynakExamId,
+      kontrol_tarihi: tarih,
+      toplam_yazilan: secim,
+      gereken: o.bant.gereken,
+      iptal: false,
+    })
+  }
+  return { yazilacak, gecersiz }
+}
+
+// Bu ödev için ekstra artı daha önce kaydedilmiş mi?
+export function ekstraVarMi(duzeltmeSatirlari) {
+  return (duzeltmeSatirlari ?? []).some((d) => d.tur === 'ekstra_arti')
+}
+
+// Kaydedilecek ekstra artı satırları: yalnızca ödevsiz bantta, ödev başına tek sefer, tarih = kontrol tarihi.
+//  ogrenciler: [{ student_id, bant, duzeltmeSatirlari }]   ekstraSecimleri: { [student_id]: true | false }
+export function kaydedilecekEkstralar({ ogrenciler, ekstraSecimleri, tarih, kaynakExamId }) {
+  return ogrenciler
+    .filter((o) => ekstraSecimleri[o.student_id] && o.bant.tur === 'odevsiz' && !ekstraVarMi(o.duzeltmeSatirlari))
+    .map((o) => ({ student_id: o.student_id, kaynak_exam_id: kaynakExamId, tur: 'ekstra_arti', puan: 1, tarih, neden: null }))
+}
+
+// "Bu tarihin kaydını iptal et": kayıtlı kontrolün aynı tarih ve değerleriyle iptal=true satırı (silme yok, yeni satır).
+// Tarihte geçerli kayıt yoksa null.
+export function iptalSatiri({ studentId, kaynakExamId, kontrolSatirlari, tarih }) {
+  const kayitli = gecerliKontroller(kontrolSatirlari).find((k) => k.kontrol_tarihi === tarih)
+  if (!kayitli) return null
+  return {
+    student_id: studentId,
+    kaynak_exam_id: kaynakExamId,
+    kontrol_tarihi: tarih,
+    toplam_yazilan: kayitli.toplam_yazilan,
+    gereken: kayitli.gereken,
+    iptal: true,
+  }
+}
+
+// Elle düzeltme iletişim kutusu doğrulaması: puan sıfırdan farklı tam sayı, neden zorunlu, tarih geçerli ve ileri değil.
+// Çok büyük değerlerde yalnızca uyarı verir (hata değil).
+export function elleDuzeltmeDogrula({ puan, neden, tarih, bugun }) {
+  if (!Number.isInteger(puan) || puan === 0) return { gecerli: false, hata: 'Puan sıfırdan farklı bir tam sayı olmalı (örn. 2 ya da -1).' }
+  if (String(neden ?? '').trim() === '') return { gecerli: false, hata: 'Neden yazmak zorunlu.' }
+  const t = kontrolTarihiDogrula(tarih, bugun)
+  if (!t.gecerli) return { gecerli: false, hata: t.hata }
+  if (Math.abs(puan) > 10) return { gecerli: true, uyari: `${puan} büyük bir değer. Emin misin?` }
+  return { gecerli: true }
+}
+
+// Elle düzeltme satırı (veritabanına yazılacak biçim)
+export function elleDuzeltmeSatiri({ studentId, kaynakExamId, puan, neden, tarih }) {
+  return { student_id: studentId, kaynak_exam_id: kaynakExamId, tur: 'elle', puan, tarih, neden: String(neden).trim() }
+}
